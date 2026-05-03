@@ -28,6 +28,7 @@ temp/
 *.db-wal
 .codex
 /uploads
+.claude
 
 
 # 4. IDE 与系统配置文件
@@ -36,3 +37,8 @@ temp/
 .DS_Store
 EOF
 uploads/
+.gitnexus/
+civil-interview-backend/uploads/
+*.db-shm
+*.db-wal
+civil_interview.db

@@ -111,6 +111,12 @@ TABLE_STATEMENTS = [
         exam_id VARCHAR(100) NOT NULL UNIQUE,
         username VARCHAR(100) NOT NULL,
         question_count INT NOT NULL DEFAULT 0,
+<<<<<<< HEAD
+=======
+        total_score FLOAT NOT NULL DEFAULT 0,
+        max_score FLOAT NOT NULL DEFAULT 100,
+        grade VARCHAR(4) NOT NULL DEFAULT 'B',
+>>>>>>> 763336c0f1d87f89e9f21c1aa19d82b59ca99efa
         province VARCHAR(50) NOT NULL DEFAULT 'national',
         completed_at DATETIME NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

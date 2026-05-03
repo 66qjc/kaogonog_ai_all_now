@@ -5,6 +5,7 @@ import { useBillingStore } from '@/stores/billing'
 
 const PREFERENCES_STORAGE_KEY = 'civil_user_preferences'
 const PROVINCE_STORAGE_KEY = 'civil_selected_province'
+const PROVINCE_CONFIRMED_STORAGE_KEY = 'civil_selected_province_confirmed'
 const TOKEN_STORAGE_KEY = 'token'
 const USERNAME_STORAGE_KEY = 'username'
 const GUEST_STORAGE_SCOPE = 'guest'
@@ -86,18 +87,46 @@ function saveProvinceToStorage(code, username = '') {
   }
 }
 
+function loadProvinceConfirmedForUser(username = '') {
+  try {
+    const scopedKey = buildScopedStorageKey(PROVINCE_CONFIRMED_STORAGE_KEY, username)
+    const raw = localStorage.getItem(scopedKey) ?? localStorage.getItem(PROVINCE_CONFIRMED_STORAGE_KEY)
+    return raw === '1' || raw === 'true'
+  } catch {
+    return false
+  }
+}
+
+function saveProvinceConfirmedToStorage(confirmed, username = '') {
+  try {
+    localStorage.setItem(
+      buildScopedStorageKey(PROVINCE_CONFIRMED_STORAGE_KEY, username),
+      confirmed ? '1' : '0'
+    )
+  } catch {
+    // ignore local storage failures
+  }
+}
+
 export const useUserStore = defineStore('user', {
   state: () => ({
     token: localStorage.getItem(TOKEN_STORAGE_KEY) || '',
     username: localStorage.getItem(USERNAME_STORAGE_KEY) || '',
     email: '',
-    role: 'user',
-    permissions: {
-      canManageQuestionBank: false,
-      canAccessPremiumModules: false
+    userInfo: {
+      id: '',
+      name: '',
+      avatar: '',
+      province: 'national',
+      role: 'user',
+      isAdmin: false,
+      permissions: {
+        canManageQuestionBank: false,
+        canAccessPremiumModules: false
+      }
     },
-    userInfo: { id: '', name: '', avatar: '', province: 'national' },
     selectedProvince: loadProvinceForUser(),
+    provinceConfirmed: loadProvinceConfirmedForUser(),
     provinces: [],
     preferences: loadPreferencesForUser()
   }),
@@ -107,14 +136,17 @@ export const useUserStore = defineStore('user', {
       return !!state.token
     },
     isAdmin(state) {
-      return state.role === 'admin' || state.username === 'admin' || state.userInfo?.id === 'admin'
+      return !!state.userInfo?.isAdmin || state.username === 'admin' || state.userInfo?.id === 'admin'
     },
     roleLabel() {
-      return this.isAdmin ? '管理员' : '普通用户'
+      return this.isAdmin ? 'Admin' : 'User'
     },
     provinceName(state) {
       const province = state.provinces.find((item) => item.code === state.selectedProvince)
-      return province ? province.name : 'National'
+      return province ? province.name : '国考'
+    },
+    hasConfirmedProvinceSelection(state) {
+      return !!state.provinceConfirmed
     }
   },
 
@@ -126,6 +158,7 @@ export const useUserStore = defineStore('user', {
       localStorage.setItem(TOKEN_STORAGE_KEY, res.access_token)
       localStorage.setItem(USERNAME_STORAGE_KEY, username)
       this.selectedProvince = loadProvinceForUser(username)
+      this.provinceConfirmed = loadProvinceConfirmedForUser(username)
       this.preferences = loadPreferencesForUser(username)
 
       try {
@@ -145,17 +178,24 @@ export const useUserStore = defineStore('user', {
       this.token = ''
       this.username = ''
       this.email = ''
-      this.role = 'user'
-      this.permissions = {
-        canManageQuestionBank: false,
-        canAccessPremiumModules: false
+      this.userInfo = {
+        id: '',
+        name: '',
+        avatar: '',
+        province: 'national',
+        role: 'user',
+        isAdmin: false,
+        permissions: {
+          canManageQuestionBank: false,
+          canAccessPremiumModules: false
+        }
       }
-      this.userInfo = { id: '', name: '', avatar: '', province: 'national' }
       localStorage.removeItem(TOKEN_STORAGE_KEY)
       localStorage.removeItem(USERNAME_STORAGE_KEY)
       this.selectedProvince = loadProvinceForUser()
+      this.provinceConfirmed = loadProvinceConfirmedForUser()
       this.preferences = loadPreferencesForUser()
-      billingStore.resetLocalState()
+      billingStore.resetToTrial()
     },
 
     async register(form) {
@@ -176,23 +216,28 @@ export const useUserStore = defineStore('user', {
         id: activeUsername,
         name: info?.name || activeUsername,
         avatar: info?.avatar || '',
-        province: info?.province || 'national'
+        province: info?.province || 'national',
+        role: info?.role || 'user',
+        isAdmin: !!info?.isAdmin || activeUsername === 'admin',
+        permissions: {
+          canManageQuestionBank: !!info?.permissions?.canManageQuestionBank,
+          canAccessPremiumModules: !!info?.permissions?.canAccessPremiumModules
+        }
       }
       this.email = info?.email || ''
-      this.role = info?.role || (activeUsername === 'admin' ? 'admin' : 'user')
-      this.permissions = {
-        canManageQuestionBank: !!info?.permissions?.canManageQuestionBank,
-        canAccessPremiumModules: !!info?.permissions?.canAccessPremiumModules
-      }
       this.selectedProvince = this.userInfo.province || loadProvinceForUser(activeUsername)
+      this.provinceConfirmed = loadProvinceConfirmedForUser(activeUsername)
       this.preferences = normalizePreferences({
         ...loadPreferencesForUser(activeUsername),
         ...(info?.preferences || {})
       })
 
-      billingStore.applyServerBilling(info?.billing || {}, activeUsername)
       saveProvinceToStorage(this.selectedProvince, activeUsername)
       savePreferencesToStorage(this.preferences, activeUsername)
+
+      if (info?.billing) {
+        billingStore.applyBackendState(info.billing)
+      }
 
       return this.userInfo
     },
@@ -219,6 +264,33 @@ export const useUserStore = defineStore('user', {
         return await updateUserProfile({ province: this.selectedProvince })
       } catch (error) {
         this.setProvince(previous)
+        return { success: false, error }
+      }
+    },
+
+    async confirmProvinceSelection(code) {
+      const previousProvince = this.selectedProvince
+      const previousConfirmed = this.provinceConfirmed
+
+      this.setProvince(code)
+      this.provinceConfirmed = true
+      saveProvinceConfirmedToStorage(true, this.username)
+
+      if (!this.isAuthenticated) {
+        return { success: true }
+      }
+
+      try {
+        await updateUserProfile({ province: this.selectedProvince })
+        this.userInfo = {
+          ...this.userInfo,
+          province: this.selectedProvince
+        }
+        return { success: true }
+      } catch (error) {
+        this.setProvince(previousProvince)
+        this.provinceConfirmed = previousConfirmed
+        saveProvinceConfirmedToStorage(previousConfirmed, this.username)
         return { success: false, error }
       }
     },

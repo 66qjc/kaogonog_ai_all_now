@@ -2,7 +2,11 @@
 import uuid
 from datetime import datetime, timezone
 
+<<<<<<< HEAD
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, JSON
+=======
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, JSON
+>>>>>>> 763336c0f1d87f89e9f21c1aa19d82b59ca99efa
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
