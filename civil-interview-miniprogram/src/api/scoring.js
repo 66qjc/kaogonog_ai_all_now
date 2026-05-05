@@ -1,11 +1,12 @@
 import { request, uploadFile } from './request'
 
-export function transcribeAudio(filePath) {
+export function transcribeAudio(filePath, options = {}) {
+  const mediaType = options.mediaType || 'audio'
   return uploadFile({
     url: '/scoring/transcribe',
     filePath,
     name: 'audio',
-    timeout: 60000
+    timeout: mediaType === 'video' ? 120000 : 60000
   })
 }
 

@@ -8,17 +8,18 @@ export function startExam(questionIds = []) {
   })
 }
 
-export function uploadRecording(examId, questionId, filePath) {
+export function uploadRecording(examId, questionId, filePath, options = {}) {
+  const mediaType = options.mediaType || 'audio'
   return uploadFile({
     url: `/exam/${examId}/upload`,
     filePath,
     name: 'recording',
     formData: {
       questionId,
-      mediaType: 'audio',
-      source: 'miniapp_recording'
+      mediaType,
+      source: options.source || `miniapp_${mediaType}_recording`
     },
-    timeout: 60000
+    timeout: mediaType === 'video' ? 120000 : 60000
   })
 }
 

@@ -19,6 +19,35 @@
       </div>
     </div>
 
+    <div v-if="showJiangsuEntry" class="jiangsu-entry card">
+      <div class="jiangsu-entry__banner">
+        <div>
+          <span class="jiangsu-entry__eyebrow">首页核心入口</span>
+          <h2>2026 江苏事业单位统考 · 分岗精准刷题</h2>
+          <p>岗位优先，按报考热度进入对应题库。</p>
+        </div>
+        <a-button type="primary" ghost @click="$router.push('/jiangsu-jobs/a')">
+          A类优先刷
+        </a-button>
+      </div>
+
+      <div class="jiangsu-job-grid">
+        <div
+          v-for="job in jiangsuJobs"
+          :key="job.key"
+          class="jiangsu-job-card"
+          @click="$router.push(`/jiangsu-jobs/${job.key}`)"
+        >
+          <div class="jiangsu-job-card__rank">{{ job.rank }}</div>
+          <div class="jiangsu-job-card__body">
+            <h3>{{ job.title }}</h3>
+            <p>{{ job.subtitle }}</p>
+          </div>
+          <RightOutlined class="jiangsu-job-card__arrow" />
+        </div>
+      </div>
+    </div>
+
     <!-- 数据概览 -->
     <div class="home-stats" v-if="historyStore.stats">
       <div class="home-stat-item card">
@@ -95,12 +124,13 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { PlayCircleOutlined } from '@ant-design/icons-vue'
+import { PlayCircleOutlined, RightOutlined } from '@ant-design/icons-vue'
 import echarts from '@/utils/echarts'
 import { useHistoryStore } from '@/stores/history'
 import { useUserStore } from '@/stores/user'
 import { formatDate } from '@/utils/formatter'
 import { GRADE_CONFIG, DIMENSIONS, WEAK_THRESHOLD } from '@/utils/constants'
+import { JIANGSU_JOB_CATEGORIES } from '@/utils/jiangsuJobs'
 import ScoreRing from '@/components/common/ScoreRing.vue'
 import RadarChart from '@/components/common/RadarChart.vue'
 import WeaknessAnalysis from '@/components/common/WeaknessAnalysis.vue'
@@ -112,7 +142,10 @@ const userStore = useUserStore()
 const loading = ref(true)
 const recentRecords = ref([])
 const trendChartRef = ref(null)
+const jiangsuJobs = JIANGSU_JOB_CATEGORIES
 let chart = null
+
+const showJiangsuEntry = computed(() => userStore.selectedProvince === 'jiangsu')
 
 // Transform dimensionAverages to RadarChart format
 const radarDimensions = computed(() => {
@@ -229,6 +262,101 @@ onUnmounted(() => {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-top: 12px;
+}
+
+.jiangsu-entry {
+  margin-top: 12px;
+  padding: 16px;
+}
+
+.jiangsu-entry__banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-radius: @border-radius;
+  background: #f4f9ff;
+
+  h2 {
+    margin: 4px 0;
+    color: @text-primary;
+    font-size: @font-size-xl;
+  }
+
+  p {
+    margin: 0;
+    color: @text-secondary;
+    font-size: @font-size-sm;
+  }
+}
+
+.jiangsu-entry__eyebrow {
+  color: @primary-color;
+  font-size: @font-size-xs;
+  font-weight: 600;
+}
+
+.jiangsu-job-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.jiangsu-job-card {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 16px;
+  gap: 10px;
+  align-items: center;
+  min-height: 78px;
+  padding: 12px;
+  border: 1px solid @border-color;
+  border-radius: @border-radius;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    border-color: @primary-color;
+    box-shadow: @shadow-card;
+  }
+}
+
+.jiangsu-job-card__rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: @bg-light-blue;
+  color: @primary-color;
+  font-size: @font-size-sm;
+  font-weight: 700;
+}
+
+.jiangsu-job-card__body {
+  min-width: 0;
+
+  h3 {
+    margin: 0;
+    color: @text-primary;
+    font-size: @font-size-base;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: @text-secondary;
+    font-size: @font-size-xs;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.jiangsu-job-card__arrow {
+  color: @text-secondary;
 }
 
 .home-stat-item {

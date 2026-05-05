@@ -38,8 +38,9 @@
         {{ mode === 'login' ? '登录' : '注册' }}
       </button>
 
-      <view class="login-demo">
-        <text>默认演示账号：admin / admin123</text>
+      <view v-if="userStore.isAuthenticated" class="session-tools">
+        <button class="secondary-button session-tools__button" @tap="goHomeWithCachedSession">进入已登录首页</button>
+        <button class="secondary-button danger-button session-tools__button" @tap="clearLocalSession">清除本地登录态</button>
       </view>
     </view>
   </view>
@@ -47,7 +48,6 @@
 
 <script setup>
 import { reactive, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
 import { useUserStore } from '../../stores/user'
 import { toast } from '../../utils/navigation'
 
@@ -60,11 +60,14 @@ const form = reactive({
   confirmPassword: ''
 })
 
-onShow(() => {
-  if (userStore.isAuthenticated) {
-    uni.switchTab({ url: '/pages/home/index' })
-  }
-})
+function goHomeWithCachedSession() {
+  uni.switchTab({ url: '/pages/home/index' })
+}
+
+function clearLocalSession() {
+  userStore.logout()
+  toast('已清除本地登录态，请重新登录')
+}
 
 function validate() {
   if (!form.username.trim()) {
@@ -93,6 +96,7 @@ function validate() {
 }
 
 async function submit() {
+  if (loading.value) return
   if (!validate()) return
   loading.value = true
   try {
@@ -186,10 +190,15 @@ async function submit() {
   margin-top: 34rpx;
 }
 
-.login-demo {
+.session-tools {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14rpx;
   margin-top: 24rpx;
-  color: #8c8c8c;
-  font-size: 23rpx;
-  text-align: center;
+}
+
+.session-tools__button {
+  min-height: 76rpx;
+  font-size: 25rpx;
 }
 </style>

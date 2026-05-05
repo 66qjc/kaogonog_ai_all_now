@@ -125,6 +125,19 @@ export const useUserStore = defineStore('user', {
       return this.userInfo
     },
 
+    async validateSession() {
+      if (!this.token) return false
+      try {
+        await this.loadUserInfo()
+        return true
+      } catch (error) {
+        if (error?.statusCode === 401) {
+          this.logout()
+        }
+        return false
+      }
+    },
+
     async loadProvinces() {
       try {
         const response = await getProvinces()

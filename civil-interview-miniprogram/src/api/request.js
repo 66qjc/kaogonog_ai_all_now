@@ -35,13 +35,25 @@ function handleUnauthorized() {
   uni.reLaunch({ url: '/pages/login/index' })
 }
 
+function normalizeNetworkError(err) {
+  const rawMessage = String(err?.errMsg || err?.message || '')
+  if (
+    rawMessage.includes('ERR_CONNECTION_REFUSED')
+    || rawMessage.includes('request:fail')
+    || rawMessage.includes('timeout')
+  ) {
+    return `后端服务连接失败：${API_BASE}。微信开发者工具在 Windows 中运行时，127.0.0.1 指向 Windows 本机；如果后端在 WSL、虚拟机或另一台机器，请把 .env 里的 VITE_API_BASE 改成可访问的局域网地址后重新构建。`
+  }
+  return rawMessage || '网络请求失败，请检查后端服务'
+}
+
 export function request(options = {}) {
   const {
     url,
     method = 'GET',
     data = {},
     header = {},
-    timeout = 180000,
+    timeout = 30000,
     skipErrorHandler = false
   } = options
 
@@ -75,7 +87,7 @@ export function request(options = {}) {
         reject(error)
       },
       fail(err) {
-        const error = new Error(err?.errMsg || '网络请求失败，请检查后端服务')
+        const error = new Error(normalizeNetworkError(err))
         if (!skipErrorHandler) toast(error.message)
         reject(error)
       }
@@ -90,7 +102,7 @@ export function uploadFile(options = {}) {
     name = 'file',
     formData = {},
     header = {},
-    timeout = 180000,
+    timeout = 60000,
     skipErrorHandler = false
   } = options
 
@@ -131,7 +143,7 @@ export function uploadFile(options = {}) {
         reject(error)
       },
       fail(err) {
-        const error = new Error(err?.errMsg || '文件上传失败')
+        const error = new Error(normalizeNetworkError(err))
         if (!skipErrorHandler) toast(error.message)
         reject(error)
       }

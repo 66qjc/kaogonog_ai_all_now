@@ -17,6 +17,12 @@
       }
     },
     {
+      "path": "pages/jiangsu/job",
+      "style": {
+        "navigationBarTitleText": "江苏分岗刷题"
+      }
+    },
+    {
       "path": "pages/bank/index",
       "style": {
         "navigationBarTitleText": "题库"
@@ -98,23 +104,33 @@
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "首页"
+        "text": "首页",
+        "iconPath": "static/tabbar/home.png",
+        "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/targeted/index",
-        "text": "定向"
+        "text": "定向",
+        "iconPath": "static/tabbar/targeted.png",
+        "selectedIconPath": "static/tabbar/targeted-active.png"
       },
       {
         "pagePath": "pages/bank/index",
-        "text": "题库"
+        "text": "题库",
+        "iconPath": "static/tabbar/bank.png",
+        "selectedIconPath": "static/tabbar/bank-active.png"
       },
       {
         "pagePath": "pages/training/index",
-        "text": "训练"
+        "text": "训练",
+        "iconPath": "static/tabbar/training.png",
+        "selectedIconPath": "static/tabbar/training-active.png"
       },
       {
         "pagePath": "pages/profile/index",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "static/tabbar/profile.png",
+        "selectedIconPath": "static/tabbar/profile-active.png"
       }
     ]
   },

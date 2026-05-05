@@ -45,7 +45,7 @@ export const useExamStore = defineStore('exam', {
       return response
     },
 
-    async submitCurrentAnswer({ text = '', filePath = '' } = {}) {
+    async submitCurrentAnswer({ text = '', filePath = '', mediaType = 'audio' } = {}) {
       const question = this.currentQuestion
       if (!question) throw new Error('当前题目不存在')
       if (!this.examId) throw new Error('考试会话不存在，请重新开始')
@@ -54,15 +54,15 @@ export const useExamStore = defineStore('exam', {
       try {
         let transcript = String(text || '').trim()
         if (filePath) {
-          await uploadRecording(this.examId, question.id, filePath)
+          await uploadRecording(this.examId, question.id, filePath, { mediaType })
           if (!transcript) {
-            const transcribeResult = await transcribeAudio(filePath)
+            const transcribeResult = await transcribeAudio(filePath, { mediaType })
             transcript = String(transcribeResult?.transcript || '').trim()
           }
         }
 
         if (!transcript) {
-          throw new Error('请先录音或输入文字作答')
+          throw new Error('请先完成录音或视频录制')
         }
 
         const result = normalizeResult(await evaluateAnswer({

@@ -19,14 +19,51 @@
         <view class="card">
           <view class="section-head">
             <text class="section-title">作答区</text>
-            <text class="muted">{{ answerText.length }} 字</text>
+            <text class="muted">录音 / 摄像头</text>
           </view>
-          <textarea
-            v-model="answerText"
-            class="textarea-field"
-            maxlength="-1"
-            placeholder="可以直接输入文字作答；如果已录音且不输入文字，系统会先转写录音。"
-          />
+
+          <view v-if="textInputModeVisible" class="text-answer-panel">
+            <view class="section-head section-head--compact">
+              <text class="section-title section-title--small">文字作答</text>
+              <text class="muted">{{ answerText.length }} 字</text>
+            </view>
+            <textarea
+              v-model="answerText"
+              class="textarea-field"
+              maxlength="-1"
+              placeholder="请输入文字作答内容"
+            />
+          </view>
+
+          <view class="camera-panel">
+            <camera
+              class="camera-preview"
+              mode="normal"
+              device-position="front"
+              flash="off"
+              @error="onCameraError"
+            />
+            <view class="record-panel__status camera-panel__status">
+              <text>{{ cameraStatusText }}</text>
+              <text v-if="recordedVideoFile" class="record-panel__ready">已录像</text>
+            </view>
+            <view class="record-actions">
+              <button
+                class="secondary-button"
+                :disabled="videoRecording || recording || examStore.loading"
+                @tap="startVideoRecord"
+              >
+                开始录像
+              </button>
+              <button
+                class="secondary-button"
+                :disabled="!videoRecording || examStore.loading"
+                @tap="stopVideoRecord"
+              >
+                停止录像
+              </button>
+            </view>
+          </view>
 
           <view class="record-panel">
             <view class="record-panel__status">
@@ -36,7 +73,7 @@
             <view class="record-actions">
               <button
                 class="secondary-button"
-                :disabled="recording || examStore.loading"
+                :disabled="recording || videoRecording || examStore.loading"
                 @tap="startRecord"
               >
                 开始录音
@@ -69,7 +106,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onHide, onLoad, onReady } from '@dcloudio/uni-app'
 import EmptyState from '../../components/EmptyState.vue'
 import { useExamStore } from '../../stores/exam'
 import { useUserStore } from '../../stores/user'
@@ -82,19 +119,42 @@ const phase = ref('preparing')
 const prepLeft = ref(userStore.preferences.defaultPrepTime)
 const answerLeft = ref(userStore.preferences.defaultAnswerTime)
 const answerText = ref('')
+const textInputModeVisible = ref(false)
 const recording = ref(false)
 const recordedFile = ref('')
 const recorder = ref(null)
+const videoRecording = ref(false)
+const recordedVideoFile = ref('')
+const cameraContext = ref(null)
+const cameraError = ref('')
+const selectedMediaType = ref('')
 let timer = null
 
 const question = computed(() => examStore.currentQuestion)
 const points = computed(() => Array.isArray(question.value?.scoringPoints) ? question.value.scoringPoints.slice(0, 6) : [])
 const activeTimeLeft = computed(() => phase.value === 'preparing' ? prepLeft.value : answerLeft.value)
 const activeTimerLabel = computed(() => phase.value === 'preparing' ? '准备' : '作答')
+const cameraStatusText = computed(() => {
+  if (cameraError.value) return cameraError.value
+  if (videoRecording.value) return '摄像头录像中，请保持正对镜头'
+  if (recordedVideoFile.value) return '录像已保存，可提交或重新录制'
+  return '请授权摄像头，可使用录像提交作答'
+})
 const recordStatusText = computed(() => {
   if (recording.value) return '录音中，请保持语速稳定'
   if (recordedFile.value) return '录音已保存，可提交或重新录制'
-  return '可使用麦克风录音，也可只提交文字'
+  return '请授权麦克风，可使用录音提交作答'
+})
+const currentMedia = computed(() => {
+  if (selectedMediaType.value === 'video' && recordedVideoFile.value) {
+    return { filePath: recordedVideoFile.value, mediaType: 'video' }
+  }
+  if (selectedMediaType.value === 'audio' && recordedFile.value) {
+    return { filePath: recordedFile.value, mediaType: 'audio' }
+  }
+  if (recordedVideoFile.value) return { filePath: recordedVideoFile.value, mediaType: 'video' }
+  if (recordedFile.value) return { filePath: recordedFile.value, mediaType: 'audio' }
+  return { filePath: '', mediaType: '' }
 })
 
 onLoad(() => {
@@ -103,9 +163,18 @@ onLoad(() => {
   startTimer()
 })
 
+onReady(() => {
+  setupCamera()
+})
+
+onHide(() => {
+  if (videoRecording.value) stopVideoRecord()
+})
+
 onBeforeUnmount(() => {
   clearInterval(timer)
   if (recording.value) stopRecord()
+  if (videoRecording.value) stopVideoRecord()
 })
 
 function setupRecorder() {
@@ -114,12 +183,23 @@ function setupRecorder() {
   recorder.value.onStop((res) => {
     recording.value = false
     recordedFile.value = res.tempFilePath || ''
-    if (recordedFile.value) toast('录音已保存', 'success')
+    if (recordedFile.value) {
+      selectedMediaType.value = 'audio'
+      toast('录音已保存', 'success')
+    }
   })
   recorder.value.onError((error) => {
     recording.value = false
     toast(error?.errMsg || '录音失败')
   })
+}
+
+function setupCamera() {
+  if (typeof uni.createCameraContext !== 'function') {
+    cameraError.value = '当前环境不支持摄像头录像'
+    return
+  }
+  cameraContext.value = uni.createCameraContext()
 }
 
 function startTimer() {
@@ -141,11 +221,18 @@ function resetQuestionState() {
   answerText.value = ''
   recording.value = false
   recordedFile.value = ''
+  videoRecording.value = false
+  recordedVideoFile.value = ''
+  selectedMediaType.value = ''
 }
 
 function startRecord() {
+  if (videoRecording.value) {
+    toast('请先停止录像')
+    return
+  }
   if (!recorder.value) {
-    toast('当前环境不支持录音，请使用文字作答')
+    toast('当前环境不支持录音')
     return
   }
   phase.value = 'answering'
@@ -169,21 +256,98 @@ function stopRecord() {
   recorder.value.stop()
 }
 
-async function submitAnswer() {
+function handleVideoSaved(res, message = '录像已保存') {
+  videoRecording.value = false
+  const videoPath = res?.tempVideoPath || ''
+  if (!videoPath) {
+    toast('录像未保存，请重新录制')
+    return
+  }
+  recordedVideoFile.value = videoPath
+  selectedMediaType.value = 'video'
+  toast(message, 'success')
+}
+
+function startVideoRecord() {
   if (recording.value) {
     toast('请先停止录音')
     return
   }
-  if (!answerText.value.trim() && !recordedFile.value) {
-    toast('请先录音或输入文字作答')
+  if (!cameraContext.value) {
+    setupCamera()
+  }
+  if (!cameraContext.value) {
+    toast(cameraError.value || '当前环境不支持摄像头')
+    return
+  }
+  phase.value = 'answering'
+  cameraError.value = ''
+  recordedVideoFile.value = ''
+  try {
+    cameraContext.value.startRecord({
+      timeout: Math.min(300, Math.max(30, Number(answerLeft.value) || 180)),
+      timeoutCallback(res) {
+        handleVideoSaved(res, '录像已自动保存')
+      },
+      success() {
+        videoRecording.value = true
+      },
+      fail(error) {
+        videoRecording.value = false
+        const message = error?.errMsg || '无法启动摄像头录像'
+        cameraError.value = message
+        toast(message)
+      }
+    })
+  } catch (error) {
+    videoRecording.value = false
+    const message = error?.message || '无法启动摄像头录像'
+    cameraError.value = message
+    toast(message)
+  }
+}
+
+function stopVideoRecord() {
+  if (!cameraContext.value || !videoRecording.value) return
+  try {
+    cameraContext.value.stopRecord({
+      compressed: true,
+      success(res) {
+        handleVideoSaved(res)
+      },
+      fail(error) {
+        videoRecording.value = false
+        toast(error?.errMsg || '录像停止失败')
+      }
+    })
+  } catch (error) {
+    videoRecording.value = false
+    toast(error?.message || '录像停止失败')
+  }
+}
+
+function onCameraError(error) {
+  cameraError.value = error?.detail?.errMsg || error?.errMsg || '摄像头不可用，请检查授权'
+}
+
+async function submitAnswer() {
+  if (recording.value || videoRecording.value) {
+    toast(recording.value ? '请先停止录音' : '请先停止录像')
+    return
+  }
+  const media = currentMedia.value
+  const visibleAnswerText = textInputModeVisible.value ? answerText.value : ''
+  if (!visibleAnswerText.trim() && !media.filePath) {
+    toast('请先完成录音或视频录制')
     return
   }
 
   showLoading('提交评分')
   try {
     const answer = await examStore.submitCurrentAnswer({
-      text: answerText.value,
-      filePath: recordedFile.value
+      text: visibleAnswerText,
+      filePath: media.filePath,
+      mediaType: media.mediaType || 'audio'
     })
 
     if (examStore.isLastQuestion) {
@@ -299,6 +463,36 @@ function goBackHome() {
   line-height: 1.5;
 }
 
+.section-head--compact {
+  margin-bottom: 14rpx;
+}
+
+.section-title--small {
+  font-size: 27rpx;
+}
+
+.text-answer-panel {
+  display: none;
+}
+
+.camera-panel {
+  overflow: hidden;
+  border: 1rpx solid #d9e3ef;
+  border-radius: 16rpx;
+  background: #f6f8fb;
+}
+
+.camera-preview {
+  display: block;
+  width: 100%;
+  height: 360rpx;
+  background: #111827;
+}
+
+.camera-panel__status {
+  padding: 18rpx 20rpx 0;
+}
+
 .record-panel {
   margin-top: 22rpx;
   padding-top: 22rpx;
@@ -322,6 +516,10 @@ function goBackHome() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16rpx;
   margin-top: 18rpx;
+}
+
+.camera-panel .record-actions {
+  padding: 0 20rpx 20rpx;
 }
 
 .room-actions {
