@@ -16,6 +16,12 @@ const routes = [
     meta: { title: 'Home', layout: 'default' }
   },
   {
+    path: '/jiangsu-jobs/:category?',
+    name: 'JiangsuJobs',
+    component: () => import('@/views/JiangsuJobs/JiangsuJobPage.vue'),
+    meta: { title: '江苏事业单位分岗刷题', layout: 'default' }
+  },
+  {
     path: '/pricing',
     name: 'Pricing',
     component: () => import('@/views/Billing/PricingPage.vue'),

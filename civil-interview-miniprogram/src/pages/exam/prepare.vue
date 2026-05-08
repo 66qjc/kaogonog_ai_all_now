@@ -1,7 +1,7 @@
 <template>
   <view class="page">
     <text class="page-title">模考准备</text>
-    <text class="page-desc">小程序端支持录音作答，也可以直接输入文字作答后提交评分。</text>
+    <text class="page-desc">小程序端支持麦克风录音和摄像头录像作答，提交后自动转写并评分。</text>
 
     <view class="card">
       <view class="section-head">
@@ -34,7 +34,7 @@
 
     <view class="card tips-card">
       <text class="tips-card__title">开考前检查</text>
-      <text class="tips-card__line">保持环境安静，授权麦克风后可录制作答音频。</text>
+      <text class="tips-card__line">保持环境安静，进入考场后请授权麦克风和摄像头。</text>
       <text class="tips-card__line">真机调试时，后端地址需使用手机可访问的域名或局域网 IP。</text>
     </view>
 

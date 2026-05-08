@@ -22,6 +22,29 @@
       <button class="secondary-button" @tap="goPricing">套餐中心</button>
     </view>
 
+    <view v-if="showJiangsuEntry" class="jiangsu-entry card">
+      <view class="jiangsu-entry__head">
+        <text class="jiangsu-entry__kicker">首页核心入口</text>
+        <text class="jiangsu-entry__title">2026 江苏事业单位统考</text>
+        <text class="jiangsu-entry__desc">分岗精准刷题，岗位优先一眼看懂。</text>
+      </view>
+      <view class="jiangsu-grid">
+        <view
+          v-for="job in jiangsuJobs"
+          :key="job.key"
+          class="jiangsu-card"
+          @tap="goJiangsuJob(job.key)"
+        >
+          <text class="jiangsu-card__rank">{{ job.rank }}</text>
+          <view class="jiangsu-card__copy">
+            <text class="jiangsu-card__title">{{ job.title }}</text>
+            <text class="jiangsu-card__desc">{{ job.subtitle }}</text>
+          </view>
+          <text class="jiangsu-card__arrow">›</text>
+        </view>
+      </view>
+    </view>
+
     <view class="section-head">
       <text class="section-title">近期练习</text>
       <text class="muted" @tap="goHistory">查看全部</text>
@@ -64,11 +87,14 @@ import StatGrid from '../../components/StatGrid.vue'
 import { useHistoryStore } from '../../stores/history'
 import { useUserStore } from '../../stores/user'
 import { formatDate } from '../../utils/format'
+import { JIANGSU_JOB_CATEGORIES } from '../../utils/jiangsuJobs'
 import { requireLogin } from '../../utils/navigation'
 
 const historyStore = useHistoryStore()
 const userStore = useUserStore()
+const jiangsuJobs = JIANGSU_JOB_CATEGORIES
 
+const showJiangsuEntry = computed(() => userStore.selectedProvince === 'jiangsu')
 const recentRecords = computed(() => (historyStore.records || []).slice(0, 3))
 const statItems = computed(() => [
   { label: '练习次数', value: historyStore.stats?.totalExams || 0 },
@@ -102,6 +128,10 @@ function goPrepare() {
 
 function goPricing() {
   uni.navigateTo({ url: '/pages/pricing/index' })
+}
+
+function goJiangsuJob(category) {
+  uni.navigateTo({ url: `/pages/jiangsu/job?category=${encodeURIComponent(category)}` })
 }
 
 function goHistory() {
@@ -155,6 +185,96 @@ function openResult(record) {
   grid-template-columns: 1.3fr 1fr;
   gap: 16rpx;
   margin-bottom: 28rpx;
+}
+
+.jiangsu-entry {
+  padding: 26rpx;
+}
+
+.jiangsu-entry__kicker,
+.jiangsu-entry__title,
+.jiangsu-entry__desc {
+  display: block;
+}
+
+.jiangsu-entry__kicker {
+  color: #1b5faa;
+  font-size: 23rpx;
+  font-weight: 700;
+}
+
+.jiangsu-entry__title {
+  margin-top: 8rpx;
+  color: #1a1a2e;
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.jiangsu-entry__desc {
+  margin-top: 8rpx;
+  color: #6f7c8f;
+  font-size: 24rpx;
+}
+
+.jiangsu-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.jiangsu-card {
+  display: grid;
+  grid-template-columns: 54rpx minmax(0, 1fr) 28rpx;
+  gap: 16rpx;
+  align-items: center;
+  min-height: 100rpx;
+  padding: 18rpx;
+  border: 1rpx solid #d9e3ef;
+  border-radius: 14rpx;
+  background: #ffffff;
+}
+
+.jiangsu-card__rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54rpx;
+  height: 54rpx;
+  border-radius: 999rpx;
+  background: #e8f4fd;
+  color: #1b5faa;
+  font-size: 25rpx;
+  font-weight: 900;
+}
+
+.jiangsu-card__title,
+.jiangsu-card__desc {
+  display: block;
+}
+
+.jiangsu-card__title {
+  overflow: hidden;
+  color: #1a1a2e;
+  font-size: 28rpx;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jiangsu-card__desc {
+  margin-top: 6rpx;
+  overflow: hidden;
+  color: #6f7c8f;
+  font-size: 23rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jiangsu-card__arrow {
+  color: #8c8c8c;
+  font-size: 44rpx;
+  line-height: 1;
 }
 
 .record-card {
