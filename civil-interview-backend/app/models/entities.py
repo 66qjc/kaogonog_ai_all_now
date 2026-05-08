@@ -2,11 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 
-<<<<<<< HEAD
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, JSON
-=======
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, JSON
->>>>>>> 763336c0f1d87f89e9f21c1aa19d82b59ca99efa
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -27,6 +23,10 @@ class User(Base):
     province = Column(String(32), default="national")
     disabled = Column(Boolean, default=False)
     preferences = Column(JSON, default=dict)
+    agreed_terms_version = Column(String(20), default="")
+    agreed_terms_at = Column(DateTime, nullable=True)
+    last_login_device = Column(String(200), default="")
+    login_device_history = Column(JSON, default=list)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     payment_orders = relationship("PaymentOrder", back_populates="user", cascade="all, delete-orphan")
@@ -65,6 +65,7 @@ class ExamAnswer(Base):
     exam_id = Column(String(32), ForeignKey("exams.id"), nullable=False, index=True)
     question_id = Column(String(32), nullable=False)
     transcript = Column(Text, default="")
+    score_result = Column(JSON, default=dict)
     media_record = Column(JSON, default=dict)
     answered_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     exam = relationship("Exam", back_populates="answers")
@@ -76,6 +77,10 @@ class HistoryRecord(Base):
     exam_id = Column(String(32), unique=True, nullable=False, index=True)
     username = Column(String(64), nullable=False, index=True)
     question_count = Column(Integer, default=0)
+    total_score = Column(Float, default=0)
+    max_score = Column(Float, default=100)
+    grade = Column(String(4), default="B")
+    dimensions = Column(JSON, default=list)
     province = Column(String(32), default="national")
     completed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

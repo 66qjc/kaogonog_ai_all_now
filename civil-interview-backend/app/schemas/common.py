@@ -44,6 +44,14 @@ class UserPreferencesUpdate(BaseModel):
     enableVideo: Optional[bool] = None
 
 
+class UserProvinceUpdate(BaseModel):
+    province: str
+
+
+class UserTermsAgreementRequest(BaseModel):
+    version: str
+
+
 # ===== Question =====
 class QuestionCreate(BaseModel):
     stem: str

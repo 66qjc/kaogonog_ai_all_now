@@ -59,6 +59,10 @@ TABLE_STATEMENTS = [
         province VARCHAR(50) NOT NULL DEFAULT 'national',
         disabled BOOLEAN NOT NULL DEFAULT FALSE,
         preferences JSON NULL,
+        agreed_terms_version VARCHAR(20) DEFAULT '',
+        agreed_terms_at DATETIME NULL,
+        last_login_device VARCHAR(200) DEFAULT '',
+        login_device_history JSON NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -96,6 +100,7 @@ TABLE_STATEMENTS = [
         exam_id VARCHAR(100) NOT NULL,
         question_id VARCHAR(100) NOT NULL,
         transcript LONGTEXT NULL,
+        score_result JSON NULL,
         media_record JSON NULL,
         answered_at DATETIME NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -111,12 +116,10 @@ TABLE_STATEMENTS = [
         exam_id VARCHAR(100) NOT NULL UNIQUE,
         username VARCHAR(100) NOT NULL,
         question_count INT NOT NULL DEFAULT 0,
-<<<<<<< HEAD
-=======
         total_score FLOAT NOT NULL DEFAULT 0,
         max_score FLOAT NOT NULL DEFAULT 100,
         grade VARCHAR(4) NOT NULL DEFAULT 'B',
->>>>>>> 763336c0f1d87f89e9f21c1aa19d82b59ca99efa
+        dimensions JSON NULL,
         province VARCHAR(50) NOT NULL DEFAULT 'national',
         completed_at DATETIME NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -260,20 +263,50 @@ def drop_database(config: dict):
         conn.close()
 
 
+def _column_exists(cur, database: str, table: str, column: str) -> bool:
+    cur.execute(
+        """
+        SELECT COUNT(*) AS cnt
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s
+        """,
+        (database, table, column),
+    )
+    return cur.fetchone()["cnt"] > 0
+
+
+def _add_column_if_missing(cur, database: str, table: str, column: str, ddl: str) -> None:
+    if not _column_exists(cur, database, table, column):
+        cur.execute(f"ALTER TABLE `{table}` ADD COLUMN {ddl}")
+
+
+def ensure_schema_updates(conn, database: str) -> None:
+    with conn.cursor() as cur:
+        _add_column_if_missing(cur, database, "users", "agreed_terms_version", "agreed_terms_version VARCHAR(20) DEFAULT ''")
+        _add_column_if_missing(cur, database, "users", "agreed_terms_at", "agreed_terms_at DATETIME NULL")
+        _add_column_if_missing(cur, database, "users", "last_login_device", "last_login_device VARCHAR(200) DEFAULT ''")
+        _add_column_if_missing(cur, database, "users", "login_device_history", "login_device_history JSON NULL")
+        _add_column_if_missing(cur, database, "exam_answers", "score_result", "score_result JSON NULL AFTER transcript")
+        _add_column_if_missing(cur, database, "history_records", "total_score", "total_score FLOAT NOT NULL DEFAULT 0")
+        _add_column_if_missing(cur, database, "history_records", "max_score", "max_score FLOAT NOT NULL DEFAULT 100")
+        _add_column_if_missing(cur, database, "history_records", "grade", "grade VARCHAR(4) NOT NULL DEFAULT 'B'")
+        _add_column_if_missing(cur, database, "history_records", "dimensions", "dimensions JSON NULL")
+
+
 def create_tables(config: dict):
     conn = pymysql.connect(**config)
     try:
         with conn.cursor() as cur:
             for sql in TABLE_STATEMENTS:
                 cur.execute(sql)
+        ensure_schema_updates(conn, config["database"])
         conn.commit()
-        print(f" [OK] {len(TABLE_STATEMENTS)} 张表已创建")
+        print(f" [OK] {len(TABLE_STATEMENTS)} 张表已创建/更新")
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
-
 
 def check_tables(config: dict):
     conn = pymysql.connect(**config)
@@ -500,3 +533,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
