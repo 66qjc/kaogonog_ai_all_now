@@ -6,8 +6,12 @@
         {{ userInitial }}
       </div>
       <div class="profile-user__info">
-        <h2>{{ userStore.userInfo?.name || userStore.username || '考生' }}</h2>
+        <div class="profile-user__name-row">
+          <h2>{{ userStore.userInfo?.name || userStore.username || '考生' }}</h2>
+          <a-tag v-if="userStore.isAdmin" color="gold">管理员</a-tag>
+        </div>
         <p v-if="userStore.email">{{ userStore.email }}</p>
+        <p v-if="userStore.isAdmin" class="profile-user__role-tip">已启用管理员权限与完整功能访问</p>
       </div>
     </div>
 
@@ -188,16 +192,28 @@ function handleLogout() {
 }
 
 .profile-user__info {
+  .profile-user__name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+
   h2 {
     font-size: @font-size-xl;
     color: @text-primary;
-    margin-bottom: 2px;
+    margin: 0;
   }
   p {
     font-size: @font-size-sm;
     color: @text-secondary;
     margin: 0;
   }
+}
+
+.profile-user__role-tip {
+  margin-top: 4px !important;
+  color: @primary-color !important;
 }
 
 .profile-stats {

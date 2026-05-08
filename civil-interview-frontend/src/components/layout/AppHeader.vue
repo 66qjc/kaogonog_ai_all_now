@@ -7,7 +7,7 @@
     <div class="app-header__actions">
       <a-button type="text" class="plan-trigger" @click="router.push('/pricing')">
         <WalletOutlined />
-        <span class="hide-on-mobile">{{ billingStore.planLabel }}</span>
+        <span class="hide-on-mobile">{{ userStore.isAdmin ? '管理员权限' : billingStore.planLabel }}</span>
       </a-button>
       <a-dropdown v-if="userStore.isAuthenticated && userStore.provinces.length">
         <a class="province-trigger" @click.prevent>

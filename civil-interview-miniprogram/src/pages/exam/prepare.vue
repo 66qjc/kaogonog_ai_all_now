@@ -46,11 +46,15 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useExamStore } from '../../stores/exam'
+import { useBillingStore } from '../../stores/billing'
 import { useQuestionBankStore } from '../../stores/questionBank'
 import { useUserStore } from '../../stores/user'
+import { getQuestionById } from '../../api/questionBank'
+import { getTrialQuestion } from '../../api/trial'
 import { hideLoading, requireLogin, showLoading, toast } from '../../utils/navigation'
 
 const examStore = useExamStore()
+const billingStore = useBillingStore()
 const questionBankStore = useQuestionBankStore()
 const userStore = useUserStore()
 const count = ref(3)
@@ -59,7 +63,8 @@ const loading = ref(false)
 const trial = ref(false)
 
 onLoad((query) => {
-  trial.value = String(query?.trial || '') === '1'
+  const requestedTrial = String(query?.trial || '') === '1'
+  trial.value = requestedTrial && !billingStore.isPaid
   if (trial.value) count.value = 1
 })
 
@@ -74,18 +79,37 @@ function increaseCount() {
 
 async function startPractice() {
   if (!requireLogin()) return
+  if (loading.value) return
   loading.value = true
   showLoading('抽取题目')
   try {
-    const questions = await questionBankStore.fetchRandom({
-      province: userStore.selectedProvince,
-      count: count.value
-    })
+    let questions = []
+    if (trial.value) {
+      try {
+        const trialQuestion = await getTrialQuestion()
+        if (trialQuestion?.id) {
+          questions = [trialQuestion]
+        } else {
+          const fallbackQuestion = await getQuestionById('q001')
+          questions = fallbackQuestion?.id ? [fallbackQuestion] : []
+        }
+      } catch {
+        const fallbackQuestion = await getQuestionById('q001')
+        questions = fallbackQuestion?.id ? [fallbackQuestion] : []
+      }
+    } else {
+      questions = await questionBankStore.fetchRandom({
+        province: userStore.selectedProvince,
+        count: count.value
+      })
+    }
+
     if (!questions.length) {
-      toast('当前筛选条件暂无题目')
+      toast(trial.value ? '试用题暂不可用，请稍后重试' : '当前筛选条件暂无题目')
       return
     }
-    await examStore.startFromQuestions(questions.slice(0, count.value), mode.value)
+    const targetCount = trial.value ? 1 : count.value
+    await examStore.startFromQuestions(questions.slice(0, targetCount), mode.value)
     uni.navigateTo({ url: '/pages/exam/room' })
   } catch (error) {
     toast(error?.message || '进入考场失败')

@@ -1,0 +1,20 @@
+
+> civil-interview-ai@1.0.0 dev
+> vite --host 0.0.0.0
+
+
+  VITE v5.4.21  ready in 211 ms
+
+  ➜  Local:   http://localhost:3001/
+  ➜  Network: http://10.255.255.254:3001/
+  ➜  Network: http://10.5.41.46:3001/
+15:57:19 [vite] page reload src/api/auth.js
+15:57:19 [vite] page reload src/api/index.js
+15:57:19 [vite] page reload src/api/user.js
+15:57:19 [vite] page reload src/api/mock/user.js
+15:57:19 [vite] page reload src/router/index.js
+15:57:19 [vite] page reload src/stores/billing.js
+15:57:19 [vite] page reload src/stores/user.js
+15:57:19 [vite] hmr update /src/App.vue
+15:57:19 [vite] hmr update /src/components/layout/AppHeader.vue
+15:57:19 [vite] hmr update /src/components/layout/AppTabBar.vue

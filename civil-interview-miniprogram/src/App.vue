@@ -1,7 +1,7 @@
 <script>
 export default {
   onLaunch() {
-    const apiBase = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8050'
+    const apiBase = import.meta.env.VITE_API_BASE || 'http://10.5.186.17:8003'
     console.log(`[miniapp] API base: ${apiBase}`)
   }
 }

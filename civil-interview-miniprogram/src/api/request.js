@@ -1,7 +1,7 @@
 import { TOKEN_STORAGE_KEY, USERNAME_STORAGE_KEY } from '../utils/constants'
 import { toast } from '../utils/navigation'
 
-export const API_BASE = (import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8050').replace(/\/$/, '')
+export const API_BASE = (import.meta.env.VITE_API_BASE || 'http://10.5.186.17:8003').replace(/\/$/, '')
 
 function joinUrl(path = '') {
   const value = String(path || '')

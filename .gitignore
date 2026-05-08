@@ -3,42 +3,22 @@ venv/
 env/
 __pycache__/
 *.py[cod]
-.venv/
 
-# 2. 重要环境变量 
+# 2. 机密环境变量 (核心安全底线)
 .env
 *.secret
 
-# 3. 媒体缓存与临时文件 
+# 3. 媒体缓存与临时文件 (多模态业务隔离)
 *.mp4
 *.wav
 *.avi
 *.mp3
 /tmp/
 temp/
-.cache/
-*.webm
-*.flac
-*.mov
-*.mkv
-.run/
-*.log
-*.session
-*.db-shm
-*.db-wal
-.codex
-/uploads
-.claude
-
 
 # 4. IDE 与系统配置文件
 .vscode/
 .idea/
 .DS_Store
-EOF
-uploads/
-.gitnexus/
-civil-interview-backend/uploads/
-*.db-shm
-*.db-wal
-civil_interview.db
+.venv/
+.gitnexus

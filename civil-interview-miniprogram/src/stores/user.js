@@ -62,8 +62,13 @@ export const useUserStore = defineStore('user', {
     isAuthenticated(state) {
       return !!state.token
     },
+    isAdmin(state) {
+      return !!state.userInfo?.isAdmin || state.username === 'admin' || state.userInfo?.id === 'admin'
+    },
     displayName(state) {
-      return state.userInfo?.name || state.username || '考生'
+      const baseName = state.userInfo?.name || state.username || '考生'
+      const isAdmin = !!state.userInfo?.isAdmin || state.username === 'admin' || state.userInfo?.id === 'admin'
+      return isAdmin ? `${baseName}（管理员权限）` : baseName
     },
     selectedProvinceName(state) {
       return state.provinces.find((item) => item.code === state.selectedProvince)?.name || '国考'

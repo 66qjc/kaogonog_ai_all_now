@@ -206,6 +206,7 @@ export const useUserStore = defineStore('user', {
       const billingStore = useBillingStore()
       const info = await getUserInfo()
       const activeUsername = info?.id || this.username
+      const isAdmin = !!info?.isAdmin || activeUsername === 'admin'
 
       if (activeUsername && activeUsername !== this.username) {
         this.username = activeUsername
@@ -218,10 +219,10 @@ export const useUserStore = defineStore('user', {
         avatar: info?.avatar || '',
         province: info?.province || 'national',
         role: info?.role || 'user',
-        isAdmin: !!info?.isAdmin || activeUsername === 'admin',
+        isAdmin,
         permissions: {
-          canManageQuestionBank: !!info?.permissions?.canManageQuestionBank,
-          canAccessPremiumModules: !!info?.permissions?.canAccessPremiumModules
+          canManageQuestionBank: isAdmin || !!info?.permissions?.canManageQuestionBank,
+          canAccessPremiumModules: isAdmin || !!info?.permissions?.canAccessPremiumModules
         }
       }
       this.email = info?.email || ''
@@ -292,6 +293,15 @@ export const useUserStore = defineStore('user', {
         this.provinceConfirmed = previousConfirmed
         saveProvinceConfirmedToStorage(previousConfirmed, this.username)
         return { success: false, error }
+      }
+    },
+
+    requireProvinceSelection(resetProvince = false) {
+      this.provinceConfirmed = false
+      saveProvinceConfirmedToStorage(false, this.username)
+
+      if (resetProvince) {
+        this.setProvince('national')
       }
     },
 

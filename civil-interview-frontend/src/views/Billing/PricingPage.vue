@@ -163,6 +163,13 @@ const trialQuestion = computed(() => billingStore.trialQuestion)
 const successVisible = ref(false)
 const latestOrder = ref(null)
 
+function resolvePostPurchaseTarget() {
+  const target = redirectTarget.value || '/'
+  if (!billingStore.isPaid) return target
+  if (!target.startsWith('/exam/prepare')) return target
+  return '/exam/prepare'
+}
+
 function isCurrentPlan(planKey) {
   if (planKey === BILLING_PLAN_KEYS.HOURLY) {
     return billingStore.isHourlyPlan && billingStore.remainingSeconds > 0
@@ -181,7 +188,7 @@ function startTrial() {
 function goNextStep() {
   successVisible.value = false
   billingStore.clearPaywallIntent()
-  router.push(redirectTarget.value || '/')
+  router.push(resolvePostPurchaseTarget())
 }
 
 function goOrders() {

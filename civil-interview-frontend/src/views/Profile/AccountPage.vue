@@ -10,9 +10,15 @@
     <!-- 账号信息 -->
     <div class="card account-section">
       <h3>基本信息</h3>
+      <div v-if="userStore.isAdmin" class="account-role-banner">
+        当前账号已识别为管理员，拥有题库管理、客服后台与完整训练权限。
+      </div>
       <a-form layout="vertical">
         <a-form-item label="用户名">
           <a-input :value="userStore.username" disabled />
+        </a-form-item>
+        <a-form-item label="账号角色">
+          <a-input :value="userStore.isAdmin ? '管理员' : '普通用户'" disabled />
         </a-form-item>
         <a-form-item label="昵称">
           <a-input v-model:value="nickname" placeholder="请输入昵称" />
@@ -153,6 +159,15 @@ function clearLocalData() {
     color: @text-primary;
     margin-bottom: 12px;
   }
+}
+
+.account-role-banner {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: @border-radius;
+  background: rgba(27, 95, 170, 0.08);
+  color: @primary-color;
+  font-size: @font-size-sm;
 }
 
 .data-hint {
