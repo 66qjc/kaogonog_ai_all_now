@@ -196,9 +196,7 @@ async function onSubmit() {
   countdown.stop()
   try {
     const blob = await recorder.stopRecording()
-    if (blob) {
-      await examStore.submitAnswer(blob)
-    }
+    await examStore.submitAnswer(blob)
   } catch (error) {
     message.error(`提交失败: ${error.message || '未知错误'}`)
   }

@@ -337,10 +337,6 @@ async function submitAnswer() {
   }
   const media = currentMedia.value
   const visibleAnswerText = textInputModeVisible.value ? answerText.value : ''
-  if (!visibleAnswerText.trim() && !media.filePath) {
-    toast('请先完成录音或视频录制')
-    return
-  }
 
   showLoading('提交评分')
   try {

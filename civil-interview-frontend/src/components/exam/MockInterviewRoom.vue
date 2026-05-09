@@ -770,8 +770,6 @@ async function submitCurrentAnswer(options = {}) {
 
   try {
     const blob = await recorder.stopRecording()
-    if (!blob) return
-
     await examStore.submitAnswer(blob)
 
     if (finishAfterSubmit || totalRemainingSeconds.value <= 0) {

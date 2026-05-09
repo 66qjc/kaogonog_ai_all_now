@@ -58,38 +58,46 @@ import { requireLogin } from '../../utils/navigation'
 const bankStore = useQuestionBankStore()
 const userStore = useUserStore()
 const keyword = ref(bankStore.filters.keyword || '')
+const selectedProvince = ref(userStore.selectedProvince || 'national')
+const selectedDimension = ref('')
 const provinceOptions = computed(() => userStore.provinces.length ? userStore.provinces : PROVINCES)
 const provinceNames = computed(() => provinceOptions.value.map((item) => item.name))
 const categoryNames = computed(() => QUESTION_CATEGORIES.map((item) => item.name))
-const provinceIndex = computed(() => Math.max(0, provinceOptions.value.findIndex((item) => item.code === bankStore.filters.province)))
-const categoryIndex = computed(() => Math.max(0, QUESTION_CATEGORIES.findIndex((item) => item.key === bankStore.filters.dimension)))
+const provinceIndex = computed(() => Math.max(0, provinceOptions.value.findIndex((item) => item.code === selectedProvince.value)))
+const categoryIndex = computed(() => Math.max(0, QUESTION_CATEGORIES.findIndex((item) => item.key === selectedDimension.value)))
 const selectedProvinceName = computed(() => provinceOptions.value[provinceIndex.value]?.name || '国考')
 const selectedCategoryName = computed(() => QUESTION_CATEGORIES[categoryIndex.value]?.name || '全部题型')
 
 onShow(async () => {
   if (!requireLogin()) return
   await userStore.loadProvinces().catch(() => null)
-  if (!bankStore.questions.length) fetchFirstPage()
+  selectedProvince.value = userStore.selectedProvince || 'national'
+  if (!bankStore.questions.length) {
+    bankStore.setFilters({ province: '', dimension: '', keyword: '' })
+    fetchFirstPage()
+  }
 })
 
 function fetchFirstPage() {
-  bankStore.fetchQuestions({ page: 1 })
+  bankStore.fetchQuestions({ page: 1, province: bankStore.filters.province || '' })
 }
 
 function onProvinceChange(event) {
   const selected = provinceOptions.value[Number(event.detail.value)]
-  bankStore.setFilters({ province: selected?.code || 'national' })
-  fetchFirstPage()
+  selectedProvince.value = selected?.code || 'national'
 }
 
 function onCategoryChange(event) {
   const selected = QUESTION_CATEGORIES[Number(event.detail.value)]
-  bankStore.setFilters({ dimension: selected?.key || '' })
-  fetchFirstPage()
+  selectedDimension.value = selected?.key || ''
 }
 
 function applySearch() {
-  bankStore.setFilters({ keyword: keyword.value.trim() })
+  bankStore.setFilters({
+    province: selectedProvince.value || '',
+    dimension: selectedDimension.value || '',
+    keyword: keyword.value.trim()
+  })
   fetchFirstPage()
 }
 

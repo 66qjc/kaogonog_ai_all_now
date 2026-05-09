@@ -1,6 +1,7 @@
 """Central configuration loaded from .env"""
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 
@@ -9,10 +10,7 @@ PROJECT_ROOT = BACKEND_ROOT.parent
 PROJECT_ENV_FILE = PROJECT_ROOT / ".env"
 BACKEND_ENV_FILE = BACKEND_ROOT / ".env"
 
-<<<<<<< HEAD
-=======
 load_dotenv(PROJECT_ENV_FILE, override=False)
->>>>>>> 763336c0f1d87f89e9f21c1aa19d82b59ca99efa
 load_dotenv(BACKEND_ENV_FILE, override=True)
 
 DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -40,8 +38,6 @@ def _env_int(*keys: str, default: int) -> int:
 def _env_bool(*keys: str, default: bool) -> bool:
     raw = _env(*keys, default="true" if default else "false").strip().lower()
     return raw in {"1", "true", "yes", "on"}
-<<<<<<< HEAD
-=======
 
 
 def _has_env(*keys: str) -> bool:
@@ -65,7 +61,27 @@ def _default_llm_base_url(provider: str) -> str:
 
 def _default_llm_model(provider: str) -> str:
     return QWEN_DEFAULT_MODEL if provider == "qwen" else DEEPSEEK_DEFAULT_MODEL
->>>>>>> 763336c0f1d87f89e9f21c1aa19d82b59ca99efa
+
+
+def _build_mysql_database_url() -> str:
+    host = _env("MYSQL_HOST", default="").strip()
+    user = _env("MYSQL_USER", default="").strip()
+    password = _env("MYSQL_PASSWORD", default="")
+    database = _env("MYSQL_DATABASE", default="").strip()
+    if not all((host, user, database)):
+        return ""
+
+    port = _env_int("MYSQL_PORT", default=3306)
+    charset = _env("MYSQL_CHARSET", default="utf8mb4").strip() or "utf8mb4"
+
+    auth = quote_plus(user)
+    if password:
+        auth = f"{auth}:{quote_plus(password)}"
+
+    return (
+        f"mysql+pymysql://{auth}@{host}:{port}/{quote_plus(database)}"
+        f"?charset={quote_plus(charset)}"
+    )
 
 
 class Settings:
@@ -73,7 +89,10 @@ class Settings:
     algorithm: str = "HS256"
     access_token_expire_minutes: int = _env_int("ACCESS_TOKEN_EXPIRE_MINUTES", default=10080)
     allowed_origins: str = _env("ALLOWED_ORIGINS", default="*")
-    database_url: str = _env("DATABASE_URL", default="sqlite:///./civil_interview.db")
+    database_url: str = _env(
+        "DATABASE_URL",
+        default=_build_mysql_database_url() or "sqlite:///./civil_interview.db",
+    )
     llm_provider: str = _infer_llm_provider()
     llm_api_key: str = _env("LLM_API_KEY", "DEEPSEEK_API_KEY", "QWEN_API_KEY", "DASHSCOPE_API_KEY", default="")
     llm_base_url: str = _env(

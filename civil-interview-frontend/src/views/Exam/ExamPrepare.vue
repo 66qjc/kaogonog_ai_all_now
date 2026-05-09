@@ -60,7 +60,7 @@
             <audio v-else :src="testBlobUrl" controls style="width: 100%; max-width: 300px; margin-top: 8px"></audio>
             <div style="margin-top: 8px">
               <a-button size="small" @click="retryTest" style="margin-right: 8px">重新试录</a-button>
-              <a-button size="small" type="primary" @click="confirmDevice">确认正常</a-button>
+              <span style="color: #389E0D">试录完成，可直接进入考场</span>
             </div>
           </div>
         </template>
@@ -83,6 +83,31 @@
             </a-radio>
           </a-space>
         </a-radio-group>
+        <div class="practice-config">
+          <div class="practice-config__item">
+            <span class="practice-config__label">题目数量</span>
+            <a-input-number
+              v-model:value="questionCount"
+              :min="1"
+              :max="10"
+              :disabled="isTrialEntry"
+              style="width: 120px"
+            />
+          </div>
+          <div class="practice-config__item">
+            <span class="practice-config__label">题目类型</span>
+            <a-select
+              v-model:value="dimensionFilter"
+              allow-clear
+              placeholder="随机题型"
+              style="width: 180px"
+            >
+              <a-select-option v-for="item in questionCategoryOptions" :key="item.key" :value="item.key">
+                {{ item.name }}
+              </a-select-option>
+            </a-select>
+          </div>
+        </div>
       </div>
       <a-button type="primary" size="large" block :loading="enteringExam" :disabled="enteringExam" @click="enterExam" style="margin-top: 16px">
         {{ examMode === 'mock' ? '开始模拟面试' : '进入考场' }}
@@ -127,6 +152,8 @@ const allReady = ref(false)
 const videoEnabled = ref(true)
 const examMode = ref('free')
 const enteringExam = ref(false)
+const questionCount = ref(5)
+const dimensionFilter = ref(undefined)
 
 // 候考室
 const waitingRoom = ref(false)
@@ -143,6 +170,16 @@ let pendingQuestions = null
 const DEFAULT_EXAM_QUESTION_COUNT = 5
 const RANDOM_FETCH_BUFFER = 6
 const RANDOM_FETCH_ATTEMPTS = 3
+const questionCategoryOptions = [
+  { key: 'analysis', name: '综合分析' },
+  { key: 'practical', name: '组织管理' },
+  { key: 'emergency', name: '应急应变' },
+  { key: 'logic', name: '人际沟通' },
+  { key: 'expression', name: '现场模拟' },
+  { key: 'legal', name: '职业认知' }
+]
+
+const isTrialEntry = computed(() => String(route.query.trial || '') === '1' && !billingStore.isPaid)
 
 function notifyUnsupportedQuestions(unsupportedCount, replaced = false) {
   if (!unsupportedCount) return
@@ -164,6 +201,7 @@ async function fetchScoringReadyRandomQuestions(count = DEFAULT_EXAM_QUESTION_CO
     const batch = await getRandomQuestions({
       province: userStore.selectedProvince,
       count: Math.max(targetCount + RANDOM_FETCH_BUFFER, targetCount),
+      dimension: dimensionFilter.value || '',
       ...options.params
     })
 
@@ -299,6 +337,7 @@ async function finishTestRecord() {
   if (blob) {
     testBlobUrl.value = URL.createObjectURL(blob)
     currentStep.value = 2
+    confirmDevice()
   }
 }
 
@@ -381,12 +420,12 @@ async function enterExam() {
 
   enteringExam.value = true
   let questions = []
-  const isTrialEntry = String(route.query.trial || '') === '1' && !billingStore.isPaid
   const source = String(route.query.source || '')
   const recommendedId = String(route.query.questionId || '')
+  const targetQuestionCount = isTrialEntry.value ? 1 : Math.max(1, Math.min(10, Number(questionCount.value) || DEFAULT_EXAM_QUESTION_COUNT))
 
   try {
-    if (isTrialEntry) {
+    if (isTrialEntry.value) {
       try {
         const trialQuestion = await getQuestionById(billingStore.trialQuestion.id)
         questions = trialQuestion ? [trialQuestion] : []
@@ -406,7 +445,7 @@ async function enterExam() {
           allowAutoSupplement: false
         })
       } catch {
-        questions = await fetchScoringReadyRandomQuestions(DEFAULT_EXAM_QUESTION_COUNT)
+        questions = await fetchScoringReadyRandomQuestions(targetQuestionCount)
       }
     } else if (source === 'training' && recommendedId) {
       try {
@@ -416,17 +455,17 @@ async function enterExam() {
           allowAutoSupplement: false
         })
       } catch {
-        questions = await fetchScoringReadyRandomQuestions(DEFAULT_EXAM_QUESTION_COUNT)
+        questions = await fetchScoringReadyRandomQuestions(targetQuestionCount)
       }
     } else if (recommendedId) {
       try {
         const question = await getQuestionById(recommendedId)
         questions = await ensureScoringReadyQuestions([question], { requiredCount: 1 })
       } catch {
-        questions = await fetchScoringReadyRandomQuestions(DEFAULT_EXAM_QUESTION_COUNT)
+        questions = await fetchScoringReadyRandomQuestions(targetQuestionCount)
       }
     } else {
-      questions = await fetchScoringReadyRandomQuestions(DEFAULT_EXAM_QUESTION_COUNT)
+      questions = await fetchScoringReadyRandomQuestions(targetQuestionCount)
     }
 
     if (!questions.length) {
@@ -439,7 +478,7 @@ async function enterExam() {
     examStore.setVideoEnabled(videoEnabled.value)
 
     if (examMode.value === 'mock') {
-      if (isTrialEntry) {
+      if (isTrialEntry.value) {
         await examStore.initExam(questions, true)
         router.push('/exam/room')
         return

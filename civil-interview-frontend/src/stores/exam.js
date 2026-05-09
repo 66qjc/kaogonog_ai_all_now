@@ -9,6 +9,37 @@ import {
 } from '@/utils/scoringSupport'
 
 const answerProcessingTasks = new Map()
+const EMPTY_TRANSCRIPT_TEXT = '未作答'
+
+function buildZeroScoreResult() {
+  return {
+    totalScore: 0,
+    maxScore: 100,
+    grade: 'D',
+    dimensions: [
+      { name: '综合分析', key: 'analysis', score: 0, maxScore: 20, lostReasons: [] },
+      { name: '实务落地', key: 'practical', score: 0, maxScore: 20, lostReasons: [] },
+      { name: '应急应变', key: 'emergency', score: 0, maxScore: 15, lostReasons: [] },
+      { name: '法治思维', key: 'legal', score: 0, maxScore: 15, lostReasons: [] },
+      { name: '逻辑结构', key: 'logic', score: 0, maxScore: 15, lostReasons: [] },
+      { name: '语言表达', key: 'expression', score: 0, maxScore: 15, lostReasons: [] }
+    ],
+    aiComment: '本题未提交有效作答内容，按空答案记 0 分。',
+    scoringMode: 'empty_zero'
+  }
+}
+
+async function evaluateEmptyAnswer(questionId, examId) {
+  try {
+    return await evaluateAnswer({
+      questionId,
+      transcript: '',
+      examId
+    })
+  } catch {
+    return buildZeroScoreResult()
+  }
+}
 
 function assertQuestionScoringSupported(questionId) {
   if (isQuestionIdScoringSupported(questionId)) return
@@ -122,6 +153,25 @@ export const useExamStore = defineStore('exam', {
       this.submitStep = 'uploading'
 
       try {
+        if (!blob || blob.size <= 0) {
+          assertQuestionScoringSupported(questionId)
+          const result = await evaluateEmptyAnswer(questionId, this.examId)
+          this.scoringResult = result
+          this.transcript = EMPTY_TRANSCRIPT_TEXT
+          this.answers.push({
+            questionId,
+            questionIndex,
+            recordingBlob: null,
+            transcript: EMPTY_TRANSCRIPT_TEXT,
+            scoringResult: result,
+            submittedAt: new Date().toISOString(),
+            processingStatus: 'completed'
+          })
+          this.status = EXAM_STATUS.COMPLETED
+          this.submitStep = ''
+          return this.answers[this.answers.length - 1]
+        }
+
         if (this.mockMode) {
           const answer = {
             examId: this.examId,
@@ -200,6 +250,18 @@ export const useExamStore = defineStore('exam', {
 
     async processMockAnswer(answer) {
       const answerExamId = answer.examId || this.examId
+      if (!answer.recordingBlob || answer.recordingBlob.size <= 0) {
+        assertQuestionScoringSupported(answer.questionId)
+        const result = await evaluateEmptyAnswer(answer.questionId, answerExamId)
+        answer.recordingBlob = null
+        answer.transcript = EMPTY_TRANSCRIPT_TEXT
+        answer.scoringResult = result
+        answer.processingStatus = 'completed'
+        this.transcript = EMPTY_TRANSCRIPT_TEXT
+        this.scoringResult = result
+        return answer
+      }
+
       answer.processingError = ''
       answer.processingStatus = 'uploading'
       await uploadRecording(answerExamId, answer.questionId, answer.recordingBlob)

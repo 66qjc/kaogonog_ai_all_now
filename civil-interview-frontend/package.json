@@ -21,6 +21,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@vitejs/plugin-vue": "^5.0.0",
     "less": "^4.2.0",
     "unplugin-auto-import": "^21.0.0",

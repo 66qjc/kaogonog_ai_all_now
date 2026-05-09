@@ -41,7 +41,7 @@
       <EmptyState title="暂无分析结果" desc="请回到定向备面页选择方向后再试。" />
     </view>
 
-    <button class="primary-button" :loading="targetedStore.focusLoading" @tap="loadFocus">刷新分析</button>
+    <button class="primary-button" :disabled="readonlyMode" :loading="targetedStore.focusLoading" @tap="loadFocus">刷新分析</button>
   </view>
 </template>
 
@@ -49,20 +49,25 @@
 import { computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import EmptyState from '../../components/EmptyState.vue'
+import { useBillingStore } from '../../stores/billing'
 import { useTargetedStore } from '../../stores/targeted'
 import { hideLoading, requireLogin, showLoading, toast } from '../../utils/navigation'
 
+const billingStore = useBillingStore()
 const targetedStore = useTargetedStore()
+const readonlyMode = computed(() => !billingStore.isPaid)
 const coreFocus = computed(() => Array.isArray(targetedStore.focusData?.coreFocus) ? targetedStore.focusData.coreFocus : [])
 const highFreqTypes = computed(() => Array.isArray(targetedStore.focusData?.highFreqTypes) ? targetedStore.focusData.highFreqTypes : [])
 const strategy = computed(() => Array.isArray(targetedStore.focusData?.strategy) ? targetedStore.focusData.strategy : [])
 
 onLoad(() => {
   if (!requireLogin()) return
+  if (readonlyMode.value) return
   if (targetedStore.hasSelection && !targetedStore.focusData) loadFocus()
 })
 
 async function loadFocus() {
+  if (readonlyMode.value) return
   if (!targetedStore.hasSelection) {
     toast('请先选择省份和岗位系统')
     uni.navigateBack()

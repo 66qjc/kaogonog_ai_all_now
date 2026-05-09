@@ -15,13 +15,12 @@
     <!-- 筛选栏 -->
     <div class="bank-list__filters card">
       <a-space wrap>
-        <ProvinceSelector @change="onProvinceChange" />
+        <ProvinceSelector v-model:value="provinceFilter" @change="onProvinceChange" />
         <a-select
           v-model:value="dimensionFilter"
           placeholder="题目分类"
           allow-clear
           style="width: 140px"
-          @change="onFilterChange"
         >
           <a-select-option v-for="item in questionCategoryOptions" :key="item.key" :value="item.key">
             {{ item.name }}
@@ -34,6 +33,7 @@
           @search="onFilterChange"
           allow-clear
         />
+        <a-button type="primary" @click="onFilterChange">搜索</a-button>
       </a-space>
     </div>
 
@@ -90,8 +90,11 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import QuestionMetaTags from '@/components/common/QuestionMetaTags.vue'
 import QuestionRichContent from '@/components/common/QuestionRichContent.vue'
 import { message } from 'ant-design-vue'
+import { useUserStore } from '@/stores/user'
 
 const bankStore = useQuestionBankStore()
+const userStore = useUserStore()
+const provinceFilter = ref(userStore.selectedProvince || 'national')
 const dimensionFilter = ref(undefined)
 const keyword = ref('')
 const questionCategoryOptions = [
@@ -104,15 +107,21 @@ const questionCategoryOptions = [
 ]
 
 onMounted(() => {
-  bankStore.fetchQuestions()
+  provinceFilter.value = userStore.selectedProvince || 'national'
+  bankStore.setFilters({ province: '', dimension: '', keyword: '' })
+  bankStore.fetchQuestions({ page: 1 })
 })
 
 function onProvinceChange(value) {
-  bankStore.switchProvince(value === 'all' ? '' : value)
+  provinceFilter.value = value
 }
 
 function onFilterChange() {
-  bankStore.setFilters({ dimension: dimensionFilter.value || '', keyword: keyword.value })
+  bankStore.setFilters({
+    province: provinceFilter.value === 'all' ? '' : provinceFilter.value || '',
+    dimension: dimensionFilter.value || '',
+    keyword: keyword.value
+  })
   bankStore.fetchQuestions()
 }
 

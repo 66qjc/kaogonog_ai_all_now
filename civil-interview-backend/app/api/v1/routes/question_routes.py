@@ -32,12 +32,12 @@ def list_qs(
 
 @router.get("/random")
 def random_qs(
-    province: str = "national", count: int = 5,
+    province: str = "national", count: int = 5, dimension: str = "",
     db: Session = Depends(get_db),
     current_user: AuthUser = Depends(get_current_user),
 ):
     ensure_random_question_access(current_user, count)
-    return get_random_questions(db, province=province, count=count)
+    return get_random_questions(db, province=province, count=count, dimension=dimension)
 
 
 @router.get("/{question_id}")

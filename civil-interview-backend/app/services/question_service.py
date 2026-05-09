@@ -503,6 +503,50 @@ def _persist_generated_questions(
     return [_q_to_dict(question) for question in persisted]
 
 
+def _build_generated_question_payloads(
+    items: list[dict],
+    *,
+    province: str,
+    default_dimension: str,
+    default_scoring_points: list[dict],
+    source_kind: str = "ai_generated",
+    position: str = "",
+) -> list[dict]:
+    questions: list[dict] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        stem = str(item.get("stem", "")).strip()
+        if not stem:
+            continue
+        meta = _build_question_meta(
+            item,
+            source_kind=source_kind,
+            source_name="",
+            asset_path="",
+            source_question_id=str(item.get("id") or "").strip(),
+        )
+        if position:
+            meta["positionTags"] = _unique_preserve_order(
+                list(meta.get("positionTags", [])) + [position]
+            )
+        questions.append({
+            "id": f"generated_{uuid.uuid4().hex[:8]}",
+            "stem": stem,
+            "dimension": str(item.get("dimension") or default_dimension).strip() or default_dimension,
+            "province": str(item.get("province") or province).strip() or province,
+            "prepTime": int(item.get("prepTime") or 90),
+            "answerTime": int(item.get("answerTime") or 180),
+            "scoringPoints": item.get("scoringPoints") if isinstance(item.get("scoringPoints"), list) else default_scoring_points,
+            "keywords": _normalize_keywords(item.get("keywords"), meta),
+            "questionSource": source_kind,
+            "questionSourceLabel": _question_source_label(source_kind),
+            "positionTags": meta.get("positionTags", []),
+            "tags": meta.get("tags", []),
+        })
+    return questions
+
+
 def _question_matches_position(question: Question, position: str) -> bool:
     if not position:
         return True
@@ -614,8 +658,7 @@ async def _generate_targeted_questions_with_llm(
     if not result or not isinstance(result, list):
         return []
 
-    generated = _persist_generated_questions(
-        db,
+    generated = _build_generated_question_payloads(
         result[:count],
         province=province or "national",
         default_dimension="analysis",
@@ -655,10 +698,12 @@ def list_questions(
     }
 
 
-def get_random_questions(db: Session, province: str = "national", count: int = 5) -> List[dict]:
+def get_random_questions(db: Session, province: str = "national", count: int = 5, dimension: str = "") -> List[dict]:
     query = db.query(Question)
     if province and province != "all":
         query = query.filter(Question.province.in_([province, "national"]))
+    if dimension:
+        query = query.filter(Question.dimension == dimension)
     all_qs = query.all()
     count = min(count, len(all_qs))
     return [_q_to_dict(q) for q in random.sample(all_qs, count)] if all_qs else []
@@ -888,8 +933,7 @@ async def generate_training_questions(
 返回纯JSON数组，不要有其他内容。"""
     result = await call_llm_api_async(prompt, system_msg="你是公务员面试命题专家，请只输出JSON数组。", max_tokens=3000)
     if result and isinstance(result, list):
-        generated = _persist_generated_questions(
-            db,
+        generated = _build_generated_question_payloads(
             result[:count],
             province="national",
             default_dimension=dimension,

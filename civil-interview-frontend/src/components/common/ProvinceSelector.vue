@@ -1,6 +1,6 @@
 <template>
   <a-select
-    v-model:value="selected"
+    :value="selected"
     :options="options"
     placeholder="选择省份"
     style="min-width: 120px"
@@ -9,13 +9,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 
-const emit = defineEmits(['change'])
+const props = defineProps({
+  value: { type: String, default: undefined }
+})
+const emit = defineEmits(['change', 'update:value'])
 const userStore = useUserStore()
 
-const selected = ref(userStore.selectedProvince)
+const selected = computed(() => props.value ?? userStore.selectedProvince)
 
 const options = computed(() =>
   [{ value: 'all', label: '全部省份' }, ...userStore.provinces.map(p => ({ value: p.code, label: p.name }))]
@@ -28,6 +31,7 @@ onMounted(() => {
 })
 
 function onSelect(value) {
+  emit('update:value', value)
   emit('change', value)
 }
 </script>

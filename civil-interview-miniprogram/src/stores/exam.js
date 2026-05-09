@@ -3,6 +3,38 @@ import { startExam, uploadRecording, completeExam } from '../api/exam'
 import { evaluateAnswer, transcribeAudio } from '../api/scoring'
 import { normalizeResult } from '../utils/scoring'
 
+const EMPTY_TRANSCRIPT_TEXT = '未作答'
+
+function buildZeroScoreResult() {
+  return normalizeResult({
+    totalScore: 0,
+    maxScore: 100,
+    grade: 'D',
+    dimensions: [
+      { name: '综合分析', key: 'analysis', score: 0, maxScore: 20 },
+      { name: '实务落地', key: 'practical', score: 0, maxScore: 20 },
+      { name: '应急应变', key: 'emergency', score: 0, maxScore: 15 },
+      { name: '法治思维', key: 'legal', score: 0, maxScore: 15 },
+      { name: '逻辑结构', key: 'logic', score: 0, maxScore: 15 },
+      { name: '语言表达', key: 'expression', score: 0, maxScore: 15 }
+    ],
+    aiComment: '本题未提交有效作答内容，按空答案记 0 分。',
+    scoringMode: 'empty_zero'
+  })
+}
+
+async function evaluateEmptyAnswer(questionId, examId) {
+  try {
+    return normalizeResult(await evaluateAnswer({
+      questionId,
+      transcript: '',
+      examId
+    }))
+  } catch {
+    return buildZeroScoreResult()
+  }
+}
+
 export const useExamStore = defineStore('exam', {
   state: () => ({
     examId: '',
@@ -61,22 +93,21 @@ export const useExamStore = defineStore('exam', {
           }
         }
 
-        if (!transcript) {
-          throw new Error('请先完成录音或视频录制')
-        }
-
-        const result = normalizeResult(await evaluateAnswer({
-          questionId: question.id,
-          transcript,
-          examId: this.examId
-        }))
+        const result = transcript
+          ? normalizeResult(await evaluateAnswer({
+            questionId: question.id,
+            transcript,
+            examId: this.examId
+          }))
+          : await evaluateEmptyAnswer(question.id, this.examId)
+        const resolvedTranscript = transcript || EMPTY_TRANSCRIPT_TEXT
 
         const answer = {
           examId: this.examId,
           questionId: question.id,
           questionStem: question.stem,
           questionIndex: this.currentIndex,
-          transcript,
+          transcript: resolvedTranscript,
           scoringResult: result,
           submittedAt: new Date().toISOString()
         }
@@ -85,7 +116,7 @@ export const useExamStore = defineStore('exam', {
           answer
         ].sort((a, b) => a.questionIndex - b.questionIndex)
         this.latestResult = result
-        this.latestTranscript = transcript
+        this.latestTranscript = resolvedTranscript
         return answer
       } finally {
         this.loading = false

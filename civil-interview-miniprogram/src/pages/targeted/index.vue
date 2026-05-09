@@ -3,6 +3,13 @@
     <text class="page-title">定向备面</text>
     <text class="page-desc">选择省份与岗位系统，生成更贴近报考方向的训练题。</text>
 
+    <view v-if="readonlyMode" class="card">
+      <view class="section-head">
+        <text class="section-title">界面预览</text>
+      </view>
+      <text class="muted">当前仅展示页面结构，相关内容暂不展示。</text>
+    </view>
+
     <view class="card">
       <view class="section-head">
         <text class="section-title">选择省份</text>
@@ -38,13 +45,13 @@
     </view>
 
     <view class="targeted-actions">
-      <button class="primary-button" :disabled="!canProceed" @tap="goFocus">分析面试重点</button>
-      <button class="secondary-button" :disabled="!canProceed" :loading="targetedStore.generateLoading" @tap="generate">
+      <button class="primary-button" :disabled="readonlyMode || !canProceed" @tap="goFocus">分析面试重点</button>
+      <button class="secondary-button" :disabled="readonlyMode || !canProceed" :loading="targetedStore.generateLoading" @tap="generate">
         生成题目
       </button>
     </view>
 
-    <view v-if="targetedStore.generatedQuestions.length">
+    <view v-if="!readonlyMode && targetedStore.generatedQuestions.length">
       <view class="section-head">
         <text class="section-title">生成题目</text>
         <text class="muted" @tap="generate">重新生成</text>
@@ -63,16 +70,19 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import QuestionCard from '../../components/QuestionCard.vue'
+import { useBillingStore } from '../../stores/billing'
 import { useExamStore } from '../../stores/exam'
 import { useTargetedStore } from '../../stores/targeted'
 import { POSITION_SYSTEMS, PROVINCES } from '../../utils/constants'
 import { hideLoading, requireLogin, showLoading, toast } from '../../utils/navigation'
 
+const billingStore = useBillingStore()
 const targetedStore = useTargetedStore()
 const examStore = useExamStore()
 const selectedProvince = ref(targetedStore.selectedProvince || 'national')
 const selectedPosition = ref(targetedStore.selectedPosition || 'general')
 const canProceed = computed(() => !!selectedProvince.value && !!selectedPosition.value)
+const readonlyMode = computed(() => !billingStore.isPaid)
 
 onShow(() => {
   requireLogin()
@@ -83,12 +93,14 @@ function syncSelection() {
 }
 
 function goFocus() {
+  if (readonlyMode.value) return
   if (!canProceed.value) return
   syncSelection()
   uni.navigateTo({ url: '/pages/targeted/focus' })
 }
 
 async function generate() {
+  if (readonlyMode.value) return
   if (!canProceed.value) {
     toast('请先选择省份和岗位系统')
     return
@@ -106,6 +118,7 @@ async function generate() {
 }
 
 async function startQuestion(question) {
+  if (readonlyMode.value) return
   showLoading('创建考场')
   try {
     await examStore.startFromQuestions([question], 'targeted')

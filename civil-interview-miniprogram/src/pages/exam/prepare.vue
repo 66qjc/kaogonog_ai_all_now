@@ -3,6 +3,11 @@
     <text class="page-title">模考准备</text>
     <text class="page-desc">小程序端支持麦克风录音和摄像头录像作答，提交后自动转写并评分。</text>
 
+    <view v-if="readonlyMode" class="card tips-card">
+      <text class="tips-card__title">界面预览</text>
+      <text class="tips-card__line">当前仅展示页面结构，相关内容暂不展示。</text>
+    </view>
+
     <view class="card">
       <view class="section-head">
         <text class="section-title">练习配置</text>
@@ -30,6 +35,13 @@
           <text class="mode-card__desc">按准备和作答计时推进</text>
         </view>
       </view>
+
+      <picker :range="categoryNames" :value="categoryIndex" @change="onCategoryChange">
+        <view class="config-row">
+          <text>题目类型</text>
+          <text class="config-row__value">{{ selectedCategoryName }}</text>
+        </view>
+      </picker>
     </view>
 
     <view class="card tips-card">
@@ -38,12 +50,12 @@
       <text class="tips-card__line">真机调试时，后端地址需使用手机可访问的域名或局域网 IP。</text>
     </view>
 
-    <button class="primary-button" :loading="loading" @tap="startPractice">进入考场</button>
+    <button class="primary-button" :disabled="readonlyMode" :loading="loading" @tap="startPractice">进入考场</button>
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useExamStore } from '../../stores/exam'
 import { useBillingStore } from '../../stores/billing'
@@ -52,6 +64,7 @@ import { useUserStore } from '../../stores/user'
 import { getQuestionById } from '../../api/questionBank'
 import { getTrialQuestion } from '../../api/trial'
 import { hideLoading, requireLogin, showLoading, toast } from '../../utils/navigation'
+import { QUESTION_CATEGORIES } from '../../utils/constants'
 
 const examStore = useExamStore()
 const billingStore = useBillingStore()
@@ -59,8 +72,13 @@ const questionBankStore = useQuestionBankStore()
 const userStore = useUserStore()
 const count = ref(3)
 const mode = ref('free')
+const selectedDimension = ref('')
 const loading = ref(false)
 const trial = ref(false)
+const readonlyMode = computed(() => !trial.value && !billingStore.isPaid)
+const categoryNames = computed(() => QUESTION_CATEGORIES.map((item) => item.name))
+const categoryIndex = computed(() => Math.max(0, QUESTION_CATEGORIES.findIndex((item) => item.key === selectedDimension.value)))
+const selectedCategoryName = computed(() => QUESTION_CATEGORIES[categoryIndex.value]?.name || '随机题型')
 
 onLoad((query) => {
   const requestedTrial = String(query?.trial || '') === '1'
@@ -77,8 +95,14 @@ function increaseCount() {
   count.value = Math.min(5, count.value + 1)
 }
 
+function onCategoryChange(event) {
+  const selected = QUESTION_CATEGORIES[Number(event.detail.value)]
+  selectedDimension.value = selected?.key || ''
+}
+
 async function startPractice() {
   if (!requireLogin()) return
+  if (readonlyMode.value) return
   if (loading.value) return
   loading.value = true
   showLoading('抽取题目')
@@ -100,7 +124,8 @@ async function startPractice() {
     } else {
       questions = await questionBankStore.fetchRandom({
         province: userStore.selectedProvince,
-        count: count.value
+        count: count.value,
+        dimension: selectedDimension.value || ''
       })
     }
 
@@ -129,6 +154,11 @@ async function startPractice() {
   color: #2a3648;
   font-size: 28rpx;
   font-weight: 600;
+}
+
+.config-row__value {
+  color: #1b5faa;
+  font-weight: 700;
 }
 
 .stepper {

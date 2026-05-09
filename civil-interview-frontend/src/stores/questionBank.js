@@ -21,8 +21,8 @@ export const useQuestionBankStore = defineStore('questionBank', {
       try {
         const mergedParams = { ...this.filters, ...this.pagination, ...params }
         const res = await getQuestions(mergedParams)
-        this.questions = res.list
-        this.pagination.total = res.total
+        this.questions = Array.isArray(res?.list) ? res.list : []
+        this.pagination.total = Number(res?.total ?? this.questions.length)
         if (params.page) this.pagination.current = params.page
       } finally {
         this.loading = false

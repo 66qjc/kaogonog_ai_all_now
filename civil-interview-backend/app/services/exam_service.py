@@ -83,7 +83,8 @@ def upload_recording(
         "uploadedAt": datetime.now(timezone.utc).isoformat(),
     }
     existing_result = answer.score_result if isinstance(answer.score_result, dict) else {}
-    answer.score_result = {**existing_result, "mediaRecord": media_record}
+    if "totalScore" not in existing_result:
+        answer.score_result = {**existing_result, "mediaRecord": media_record}
     answer.answered_at = datetime.now(timezone.utc)
     db.commit()
     return {"success": True, **media_record}

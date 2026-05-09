@@ -1,5 +1,12 @@
 <template>
   <view class="page">
+    <view v-if="readonlyMode" class="card">
+      <view class="section-head">
+        <text class="section-title">界面预览</text>
+      </view>
+      <text class="muted">当前仅展示页面结构，相关内容暂不展示。</text>
+    </view>
+
     <view class="dimension-hero card">
       <view class="dimension-hero__icon" :style="{ background: category.tone }">{{ category.icon }}</view>
       <view>
@@ -15,9 +22,9 @@
       <StatGrid :items="progressItems" />
     </view>
 
-    <button class="primary-button" :loading="trainingStore.generating" @tap="generate">生成训练题</button>
+    <button class="primary-button" :disabled="readonlyMode" :loading="trainingStore.generating" @tap="generate">生成训练题</button>
 
-    <view v-if="trainingStore.generatedQuestions.length" class="generated-list">
+    <view v-if="!readonlyMode && trainingStore.generatedQuestions.length" class="generated-list">
       <view class="section-head generated-list__head">
         <text class="section-title">训练题</text>
       </view>
@@ -36,15 +43,18 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import QuestionCard from '../../components/QuestionCard.vue'
 import StatGrid from '../../components/StatGrid.vue'
+import { useBillingStore } from '../../stores/billing'
 import { useExamStore } from '../../stores/exam'
 import { useTrainingStore } from '../../stores/training'
 import { getTrainingCategory } from '../../utils/constants'
 import { hideLoading, requireLogin, showLoading, toast } from '../../utils/navigation'
 
+const billingStore = useBillingStore()
 const trainingStore = useTrainingStore()
 const examStore = useExamStore()
 const categoryKey = ref('analysis')
 const category = computed(() => getTrainingCategory(categoryKey.value))
+const readonlyMode = computed(() => !billingStore.isPaid)
 const progress = computed(() => trainingStore.getDimensionProgress(categoryKey.value))
 const progressItems = computed(() => [
   { label: '练习次数', value: progress.value.attempts || 0 },
@@ -61,6 +71,7 @@ onLoad((query) => {
 })
 
 async function generate() {
+  if (readonlyMode.value) return
   showLoading('生成训练题')
   try {
     const questions = await trainingStore.generate(category.value.requestDimension, 3)
@@ -73,6 +84,7 @@ async function generate() {
 }
 
 async function startQuestion(question) {
+  if (readonlyMode.value) return
   showLoading('创建考场')
   try {
     await examStore.startFromQuestions([question], `training:${categoryKey.value}`)
