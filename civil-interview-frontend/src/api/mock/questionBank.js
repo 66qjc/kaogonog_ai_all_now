@@ -163,7 +163,8 @@ const mockQuestions = [
       scoring: ['调查研究', '实事求是', '请示汇报', '灵活执行', '政治意识'],
       deducting: ['擅自变通', '消极执行', '阳奉阴违'],
       bonus: ['创造性落实', '试点先行', '总结推广']
-    }
+    },
+    positionTags: ['jiangsu_a']
   }
 ]
 
@@ -175,6 +176,9 @@ export async function getMockQuestions(params = {}) {
   }
   if (params.dimension) {
     filtered = filtered.filter(q => q.dimension === params.dimension)
+  }
+  if (params.position) {
+    filtered = filtered.filter(q => Array.isArray(q.positionTags) && q.positionTags.includes(params.position))
   }
   if (params.keyword) {
     filtered = filtered.filter(q => q.stem.includes(params.keyword))
@@ -200,6 +204,9 @@ export async function getMockRandomQuestions(params = {}) {
   let pool = [...mockQuestions]
   if (params.province && params.province !== 'all') {
     pool = pool.filter(q => q.province === params.province || q.province === 'national')
+  }
+  if (params.position) {
+    pool = pool.filter(q => Array.isArray(q.positionTags) && q.positionTags.includes(params.position))
   }
   const count = Math.min(params.count || 5, pool.length)
   const shuffled = pool.sort(() => Math.random() - 0.5)

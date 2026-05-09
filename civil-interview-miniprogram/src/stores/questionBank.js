@@ -10,7 +10,8 @@ export const useQuestionBankStore = defineStore('questionBank', {
     filters: {
       keyword: '',
       dimension: '',
-      province: 'national'
+      province: 'national',
+      position: ''
     },
     pagination: {
       current: 1,

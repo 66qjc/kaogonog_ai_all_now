@@ -299,8 +299,7 @@ import VideoPreview from '@/components/recording/VideoPreview.vue'
 import QuestionMetaTags from '@/components/common/QuestionMetaTags.vue'
 import QuestionRichContent from '@/components/common/QuestionRichContent.vue'
 import mockRoomBg from '@/assets/exam/mock-interview-ai-clean.jpg'
-import judgeRoomReferenceOriginal from '@/assets/exam/mock-interview-room-live.jpg'
-import judgeRoomReferenceStage2026 from '@/assets/exam/mock-interview-room-stage-2026.jpg'
+import judgeRoomReference from '@/assets/exam/mock-interview-room-live-current.png'
 
 const router = useRouter()
 const route = useRoute()
@@ -319,30 +318,19 @@ const speechInProgress = ref(false)
 const totalRemainingSeconds = ref(0)
 const finishRequested = ref(false)
 const currentYearLabel = `${new Date().getFullYear()}年度`
-const bakedJudgeRoomYearLabel = '2026年度'
-const useBakedJudgeStage = computed(() => currentYearLabel === bakedJudgeRoomYearLabel)
-const judgeRoomReference = computed(() => (
-  useBakedJudgeStage.value ? judgeRoomReferenceStage2026 : judgeRoomReferenceOriginal
-))
 let totalTimer = null
 let speechUtterance = null
 const judgeStageSourceImageCache = new Map()
 const judgeStageSourceImagePromiseCache = new Map()
-const judgeStageViewport = {
-  sourceX: 175,
-  sourceWidth: 545
-}
-
 const judgeTimerPanelConfig = {
-  x: 686,
-  y: 284,
-  width: 56,
-  height: 36,
-  rotate: 0
+  sourceX: 1519,
+  sourceY: 374,
+  sourceWidth: 124,
+  sourceHeight: 58
 }
 
 function loadJudgeStageSourceImage() {
-  const src = judgeRoomReference.value
+  const src = judgeRoomReference
   const cached = judgeStageSourceImageCache.get(src)
   if (cached) return Promise.resolve(cached)
 
@@ -367,100 +355,39 @@ function loadJudgeStageSourceImage() {
   return promise
 }
 
-function drawRoundedRect(ctx, x, y, width, height, radius) {
-  const safeRadius = Math.min(radius, width / 2, height / 2)
-  ctx.beginPath()
-  ctx.moveTo(x + safeRadius, y)
-  ctx.lineTo(x + width - safeRadius, y)
-  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius)
-  ctx.lineTo(x + width, y + height - safeRadius)
-  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height)
-  ctx.lineTo(x + safeRadius, y + height)
-  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius)
-  ctx.lineTo(x, y + safeRadius)
-  ctx.quadraticCurveTo(x, y, x + safeRadius, y)
-  ctx.closePath()
+function mapSourceRectToCanvas(image, sourceRect) {
+  const scaleX = judgeStageSceneSize.width / image.width
+  const scaleY = judgeStageSceneSize.height / image.height
+  return {
+    x: sourceRect.sourceX * scaleX,
+    y: sourceRect.sourceY * scaleY,
+    width: sourceRect.sourceWidth * scaleX,
+    height: sourceRect.sourceHeight * scaleY
+  }
 }
 
-function drawYearPatch(ctx, image) {
-  const patchX = 0
-  const patchY = 58
-  const patchWidth = 236
-  const patchHeight = 55
-  const sampleX = 18
-  const sampleY = 59
-  const sampleWidth = 40
+function drawTimerCutout(ctx, image) {
+  const rect = mapSourceRectToCanvas(image, judgeTimerPanelConfig)
+  const timeText = formattedTotalRemaining.value
+  const maxTextWidth = rect.width * 0.9
+  let fontSize = Math.max(16, rect.height * 0.66)
 
   ctx.save()
-  ctx.drawImage(
-    image,
-    sampleX,
-    sampleY,
-    sampleWidth,
-    patchHeight,
-    patchX,
-    patchY,
-    patchWidth,
-    patchHeight
-  )
-
-  const tint = ctx.createLinearGradient(patchX, patchY, patchX + patchWidth, patchY)
-  tint.addColorStop(0, 'rgba(148, 12, 9, 0.22)')
-  tint.addColorStop(0.5, 'rgba(198, 39, 20, 0.12)')
-  tint.addColorStop(1, 'rgba(150, 12, 9, 0.2)')
-  ctx.fillStyle = tint
-  ctx.fillRect(patchX, patchY, patchWidth, patchHeight)
-
-  ctx.fillStyle = '#7f1710'
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'middle'
-  ctx.font = '700 30px "Microsoft YaHei", "PingFang SC", sans-serif'
-  ctx.fillText(currentYearLabel, patchX + 22, patchY + patchHeight / 2 + 2)
-
-  ctx.fillStyle = '#fff5e7'
-  ctx.shadowColor = 'rgba(96, 17, 9, 0.22)'
-  ctx.shadowBlur = 2
-  ctx.fillText(currentYearLabel, patchX + 19, patchY + patchHeight / 2)
-  ctx.restore()
-}
-
-function drawTimerPanel(ctx) {
-  const { x, y, width, height, rotate } = judgeTimerPanelConfig
-
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.rotate(rotate * Math.PI / 180)
-
-  ctx.fillStyle = 'rgba(32, 18, 9, 0.16)'
-  drawRoundedRect(ctx, -width / 2 + 1.5, -height / 2 + 3, width - 2, height - 2, 4)
-  ctx.fill()
-
-  const panelGradient = ctx.createLinearGradient(0, -height / 2, 0, height / 2)
-  panelGradient.addColorStop(0, 'rgba(180, 158, 118, 0.96)')
-  panelGradient.addColorStop(1, 'rgba(129, 104, 68, 0.96)')
-  ctx.fillStyle = panelGradient
-  ctx.strokeStyle = 'rgba(87, 63, 35, 0.34)'
-  ctx.lineWidth = 0.8
-  drawRoundedRect(ctx, -width / 2, -height / 2, width, height, 4)
-  ctx.fill()
-  ctx.stroke()
-
-  ctx.fillStyle = 'rgba(78, 54, 28, 0.94)'
+  ctx.fillStyle = '#191111'
+  ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
+  ctx.fillStyle = 'rgba(70, 0, 0, 0.72)'
+  ctx.fillRect(rect.x, rect.y, rect.width, rect.height * 0.1)
+  ctx.fillStyle = '#ff2a2a'
+  ctx.shadowColor = 'rgba(255, 16, 16, 0.9)'
+  ctx.shadowBlur = Math.max(4, rect.height * 0.08)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.font = '600 7px "SimSun", "Songti SC", serif'
-  ctx.fillText('计时员', 0, -height / 2 + 6)
-
-  drawRoundedRect(ctx, -width / 2 + 6, -5, width - 12, 20, 3)
-  ctx.fillStyle = 'rgba(26, 31, 27, 0.98)'
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(220, 235, 210, 0.12)'
-  ctx.lineWidth = 0.6
-  ctx.stroke()
-
-  ctx.fillStyle = '#d9ffd4'
-  ctx.font = '700 11px "Consolas", "Courier New", monospace'
-  ctx.fillText(formattedTotalRemaining.value, 0, 4)
+  ctx.font = `800 ${fontSize}px "Arial", "DIN Alternate", "Consolas", monospace`
+  while (ctx.measureText(timeText).width > maxTextWidth && fontSize > 11) {
+    fontSize -= 1
+    ctx.font = `800 ${fontSize}px "Arial", "DIN Alternate", "Consolas", monospace`
+  }
+  ctx.fillText(timeText, rect.x + rect.width / 2, rect.y + rect.height * 0.52)
   ctx.restore()
 }
 
@@ -475,14 +402,8 @@ async function renderJudgeStage() {
   if (!context) return
 
   context.clearRect(0, 0, judgeStageSceneSize.width, judgeStageSceneSize.height)
-  if (useBakedJudgeStage.value) {
-    context.drawImage(image, 0, 0, judgeStageSceneSize.width, judgeStageSceneSize.height)
-  } else {
-    const { sourceX, sourceWidth } = judgeStageViewport
-    context.drawImage(image, sourceX, 0, sourceWidth, image.height, 0, 0, judgeStageSceneSize.width, judgeStageSceneSize.height)
-    drawYearPatch(context, image)
-  }
-  drawTimerPanel(context)
+  context.drawImage(image, 0, 0, judgeStageSceneSize.width, judgeStageSceneSize.height)
+  drawTimerCutout(context, image)
 }
 
 const candidateLabel = computed(() => {

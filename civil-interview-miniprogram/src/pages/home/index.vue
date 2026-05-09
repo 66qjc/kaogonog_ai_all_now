@@ -38,7 +38,7 @@
           <text class="jiangsu-card__rank">{{ job.rank }}</text>
           <view class="jiangsu-card__copy">
             <text class="jiangsu-card__title">{{ job.title }}</text>
-            <text class="jiangsu-card__desc">{{ job.subtitle }}</text>
+            <text v-if="job.subtitle" class="jiangsu-card__desc">{{ job.subtitle }}</text>
           </view>
           <text class="jiangsu-card__arrow">›</text>
         </view>

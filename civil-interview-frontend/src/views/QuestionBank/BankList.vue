@@ -17,6 +17,17 @@
       <a-space wrap>
         <ProvinceSelector v-model:value="provinceFilter" @change="onProvinceChange" />
         <a-select
+          v-if="showPositionFilter"
+          v-model:value="positionFilter"
+          placeholder="岗位系统"
+          allow-clear
+          style="width: 210px"
+        >
+          <a-select-option v-for="item in JIANGSU_TARGETED_POSITIONS" :key="item.code" :value="item.code">
+            {{ item.name }}
+          </a-select-option>
+        </a-select>
+        <a-select
           v-model:value="dimensionFilter"
           placeholder="题目分类"
           allow-clear
@@ -82,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { UploadOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { useQuestionBankStore } from '@/stores/questionBank'
 import ProvinceSelector from '@/components/common/ProvinceSelector.vue'
@@ -91,12 +102,15 @@ import QuestionMetaTags from '@/components/common/QuestionMetaTags.vue'
 import QuestionRichContent from '@/components/common/QuestionRichContent.vue'
 import { message } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
+import { JIANGSU_TARGETED_POSITIONS } from '@/utils/jiangsuJobs'
 
 const bankStore = useQuestionBankStore()
 const userStore = useUserStore()
 const provinceFilter = ref(userStore.selectedProvince || 'national')
 const dimensionFilter = ref(undefined)
+const positionFilter = ref(undefined)
 const keyword = ref('')
+const showPositionFilter = computed(() => provinceFilter.value === 'jiangsu')
 const questionCategoryOptions = [
   { key: 'analysis', name: '综合分析' },
   { key: 'practical', name: '组织管理' },
@@ -108,18 +122,20 @@ const questionCategoryOptions = [
 
 onMounted(() => {
   provinceFilter.value = userStore.selectedProvince || 'national'
-  bankStore.setFilters({ province: '', dimension: '', keyword: '' })
+  bankStore.setFilters({ province: '', dimension: '', position: '', keyword: '' })
   bankStore.fetchQuestions({ page: 1 })
 })
 
 function onProvinceChange(value) {
   provinceFilter.value = value
+  if (value !== 'jiangsu') positionFilter.value = undefined
 }
 
 function onFilterChange() {
   bankStore.setFilters({
     province: provinceFilter.value === 'all' ? '' : provinceFilter.value || '',
     dimension: dimensionFilter.value || '',
+    position: showPositionFilter.value ? positionFilter.value || '' : '',
     keyword: keyword.value
   })
   bankStore.fetchQuestions()

@@ -24,13 +24,14 @@
       <h3>选择岗位系统</h3>
       <div class="selector-grid">
         <div
-          v-for="pos in positionSystems"
+          v-for="pos in currentPositionSystems"
           :key="pos.code"
           class="selector-chip"
           :class="{ active: selectedPosition === pos.code }"
           @click="selectedPosition = pos.code"
         >
           {{ pos.name }}
+          <span v-if="pos.desc" class="selector-chip__desc">{{ pos.desc }}</span>
         </div>
       </div>
     </div>
@@ -83,12 +84,13 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { SearchOutlined, ThunderboltOutlined, RightOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { useTargetedStore } from '@/stores/targeted'
 import { PROVINCES, POSITION_SYSTEMS } from '@/utils/constants'
+import { JIANGSU_TARGETED_POSITIONS } from '@/utils/jiangsuJobs'
 import QuestionMetaTags from '@/components/common/QuestionMetaTags.vue'
 import QuestionRichContent from '@/components/common/QuestionRichContent.vue'
 import { getScoringUnavailableMessage, isQuestionScoringSupported } from '@/utils/scoringSupport'
@@ -102,7 +104,25 @@ const positionSystems = POSITION_SYSTEMS
 const selectedProvince = ref(targetedStore.selectedProvince || '')
 const selectedPosition = ref(targetedStore.selectedPosition || '')
 
+const currentPositionSystems = computed(() => (
+  selectedProvince.value === 'jiangsu' ? JIANGSU_TARGETED_POSITIONS : positionSystems
+))
 const canProceed = computed(() => !!selectedProvince.value && !!selectedPosition.value)
+
+function getDefaultPositionCode() {
+  if (selectedProvince.value === 'jiangsu') return JIANGSU_TARGETED_POSITIONS[0]?.code || ''
+  return positionSystems.find((item) => item.code === 'general')?.code || positionSystems[0]?.code || ''
+}
+
+watch(selectedProvince, () => {
+  if (!selectedProvince.value) {
+    selectedPosition.value = ''
+    return
+  }
+  if (!currentPositionSystems.value.some((item) => item.code === selectedPosition.value)) {
+    selectedPosition.value = getDefaultPositionCode()
+  }
+}, { immediate: true })
 
 function syncSelection() {
   targetedStore.setSelection(selectedProvince.value, selectedPosition.value)
@@ -115,7 +135,12 @@ function goToFocusAnalysis() {
 
 async function generateAndPractice() {
   syncSelection()
-  await targetedStore.fetchGeneratedQuestions(5)
+  const questions = await targetedStore.fetchGeneratedQuestions(5)
+  if (!questions?.length) {
+    message.warning('题库中暂无匹配题目，请调整省份或岗位系统。')
+    return
+  }
+  router.push({ path: '/exam/prepare', query: { source: 'targeted' } })
 }
 
 function startSinglePractice(question) {
@@ -164,6 +189,11 @@ function startSinglePractice(question) {
 }
 
 .selector-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 38px;
+  justify-content: center;
   padding: 8px 16px;
   border-radius: 20px;
   border: 1px solid @border-color;
@@ -183,6 +213,12 @@ function startSinglePractice(question) {
     color: #fff;
     border-color: @primary-color;
   }
+}
+
+.selector-chip__desc {
+  font-size: @font-size-xs;
+  line-height: 1.2;
+  opacity: 0.82;
 }
 
 .targeted-actions {

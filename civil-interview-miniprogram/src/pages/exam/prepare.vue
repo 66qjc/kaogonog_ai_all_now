@@ -13,7 +13,7 @@
         <text class="section-title">练习配置</text>
       </view>
 
-      <view class="config-row">
+      <view v-if="showPracticeConfig" class="config-row">
         <text>题目数量</text>
         <view class="stepper">
           <button class="stepper__button" @tap="decreaseCount">-</button>
@@ -36,12 +36,26 @@
         </view>
       </view>
 
-      <picker :range="categoryNames" :value="categoryIndex" @change="onCategoryChange">
-        <view class="config-row">
+      <view v-if="showPracticeConfig" class="question-type-panel">
+        <view class="config-row config-row--type">
           <text>题目类型</text>
           <text class="config-row__value">{{ selectedCategoryName }}</text>
         </view>
-      </picker>
+        <view class="type-chip-grid">
+          <view
+            v-for="item in questionCategoryOptions"
+            :key="item.key"
+            class="type-chip"
+            :class="{
+              'type-chip--active': isTypeSelected(item.key),
+              'type-chip--disabled': item.key === RANDOM_DIMENSION_KEY && selectedSpecificDimensions.length > 0
+            }"
+            @tap="toggleQuestionType(item.key)"
+          >
+            <text>{{ item.name }}</text>
+          </view>
+        </view>
+      </view>
     </view>
 
     <view class="card tips-card">
@@ -70,15 +84,29 @@ const examStore = useExamStore()
 const billingStore = useBillingStore()
 const questionBankStore = useQuestionBankStore()
 const userStore = useUserStore()
-const count = ref(3)
+const DEFAULT_EXAM_QUESTION_COUNT = 5
+const MAX_FREE_QUESTION_COUNT = 10
+const count = ref(DEFAULT_EXAM_QUESTION_COUNT)
 const mode = ref('free')
-const selectedDimension = ref('')
+const selectedDimensions = ref(['random'])
 const loading = ref(false)
 const trial = ref(false)
 const readonlyMode = computed(() => !trial.value && !billingStore.isPaid)
-const categoryNames = computed(() => QUESTION_CATEGORIES.map((item) => item.name))
-const categoryIndex = computed(() => Math.max(0, QUESTION_CATEGORIES.findIndex((item) => item.key === selectedDimension.value)))
-const selectedCategoryName = computed(() => QUESTION_CATEGORIES[categoryIndex.value]?.name || '随机题型')
+const RANDOM_DIMENSION_KEY = 'random'
+const questionCategoryOptions = [
+  { key: RANDOM_DIMENSION_KEY, name: '随机题型' },
+  ...QUESTION_CATEGORIES.filter((item) => item.key)
+]
+const showPracticeConfig = computed(() => mode.value === 'free')
+const selectedSpecificDimensions = computed(() => selectedDimensions.value.filter((item) => item && item !== RANDOM_DIMENSION_KEY))
+const selectedDimensionParam = computed(() => selectedSpecificDimensions.value.join(','))
+const selectedCategoryName = computed(() => {
+  if (!selectedSpecificDimensions.value.length) return '随机题型'
+  const names = selectedSpecificDimensions.value
+    .map((key) => questionCategoryOptions.find((item) => item.key === key)?.name)
+    .filter(Boolean)
+  return names.join('、') || '随机题型'
+})
 
 onLoad((query) => {
   const requestedTrial = String(query?.trial || '') === '1'
@@ -92,12 +120,28 @@ function decreaseCount() {
 
 function increaseCount() {
   if (trial.value) return
-  count.value = Math.min(5, count.value + 1)
+  count.value = Math.min(MAX_FREE_QUESTION_COUNT, count.value + 1)
 }
 
-function onCategoryChange(event) {
-  const selected = QUESTION_CATEGORIES[Number(event.detail.value)]
-  selectedDimension.value = selected?.key || ''
+function isTypeSelected(key) {
+  return selectedDimensions.value.includes(key)
+}
+
+function toggleQuestionType(key) {
+  if (key === RANDOM_DIMENSION_KEY) {
+    if (selectedSpecificDimensions.value.length) return
+    selectedDimensions.value = [RANDOM_DIMENSION_KEY]
+    return
+  }
+
+  const specific = selectedSpecificDimensions.value
+  if (specific.includes(key)) {
+    const next = specific.filter((item) => item !== key)
+    selectedDimensions.value = next.length ? next : [RANDOM_DIMENSION_KEY]
+    return
+  }
+
+  selectedDimensions.value = [...specific, key]
 }
 
 async function startPractice() {
@@ -124,8 +168,8 @@ async function startPractice() {
     } else {
       questions = await questionBankStore.fetchRandom({
         province: userStore.selectedProvince,
-        count: count.value,
-        dimension: selectedDimension.value || ''
+        count: mode.value === 'mock' ? DEFAULT_EXAM_QUESTION_COUNT : count.value,
+        dimension: mode.value === 'mock' ? '' : selectedDimensionParam.value
       })
     }
 
@@ -133,7 +177,7 @@ async function startPractice() {
       toast(trial.value ? '试用题暂不可用，请稍后重试' : '当前筛选条件暂无题目')
       return
     }
-    const targetCount = trial.value ? 1 : count.value
+    const targetCount = trial.value ? 1 : mode.value === 'mock' ? DEFAULT_EXAM_QUESTION_COUNT : count.value
     await examStore.startFromQuestions(questions.slice(0, targetCount), mode.value)
     uni.navigateTo({ url: '/pages/exam/room' })
   } catch (error) {
@@ -157,8 +201,49 @@ async function startPractice() {
 }
 
 .config-row__value {
+  flex: 1;
+  margin-left: 24rpx;
   color: #1b5faa;
   font-weight: 700;
+  text-align: right;
+}
+
+.config-row--type {
+  padding-bottom: 10rpx;
+  align-items: flex-start;
+}
+
+.question-type-panel {
+  margin-top: 10rpx;
+}
+
+.type-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  padding-top: 6rpx;
+}
+
+.type-chip {
+  min-width: 148rpx;
+  padding: 16rpx 20rpx;
+  border: 1rpx solid #d9e3ef;
+  border-radius: 14rpx;
+  background: #ffffff;
+  color: #2a3648;
+  font-size: 25rpx;
+  font-weight: 700;
+  text-align: center;
+}
+
+.type-chip--active {
+  border-color: #1b5faa;
+  background: #e8f4fd;
+  color: #1b5faa;
+}
+
+.type-chip--disabled {
+  opacity: 0.45;
 }
 
 .stepper {

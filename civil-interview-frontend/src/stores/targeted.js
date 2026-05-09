@@ -45,8 +45,10 @@ export const useTargetedStore = defineStore('targeted', {
         this.generatedQuestions = await generateQuestions({
           province: this.selectedProvince,
           position: this.selectedPosition,
-          count
+          count,
+          sourceMode: 'local'
         })
+        return this.generatedQuestions
       } finally {
         this.generateLoading = false
       }

@@ -33,13 +33,14 @@
       </view>
       <view class="chip-row">
         <view
-          v-for="position in POSITION_SYSTEMS"
+          v-for="position in currentPositionSystems"
           :key="position.code"
           class="chip"
           :class="{ 'chip--active': selectedPosition === position.code }"
           @tap="selectedPosition = position.code"
         >
-          {{ position.name }}
+          <text class="chip__name">{{ position.name }}</text>
+          <text v-if="position.desc" class="chip__desc">{{ position.desc }}</text>
         </view>
       </view>
     </view>
@@ -67,13 +68,14 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import QuestionCard from '../../components/QuestionCard.vue'
 import { useBillingStore } from '../../stores/billing'
 import { useExamStore } from '../../stores/exam'
 import { useTargetedStore } from '../../stores/targeted'
 import { POSITION_SYSTEMS, PROVINCES } from '../../utils/constants'
+import { JIANGSU_TARGETED_POSITIONS } from '../../utils/jiangsuJobs'
 import { hideLoading, requireLogin, showLoading, toast } from '../../utils/navigation'
 
 const billingStore = useBillingStore()
@@ -81,8 +83,22 @@ const targetedStore = useTargetedStore()
 const examStore = useExamStore()
 const selectedProvince = ref(targetedStore.selectedProvince || 'national')
 const selectedPosition = ref(targetedStore.selectedPosition || 'general')
+const currentPositionSystems = computed(() => (
+  selectedProvince.value === 'jiangsu' ? JIANGSU_TARGETED_POSITIONS : POSITION_SYSTEMS
+))
 const canProceed = computed(() => !!selectedProvince.value && !!selectedPosition.value)
 const readonlyMode = computed(() => !billingStore.isPaid)
+
+function getDefaultPositionCode() {
+  if (selectedProvince.value === 'jiangsu') return JIANGSU_TARGETED_POSITIONS[0]?.code || ''
+  return POSITION_SYSTEMS.find((item) => item.code === 'general')?.code || POSITION_SYSTEMS[0]?.code || ''
+}
+
+watch(selectedProvince, () => {
+  if (!currentPositionSystems.value.some((item) => item.code === selectedPosition.value)) {
+    selectedPosition.value = getDefaultPositionCode()
+  }
+}, { immediate: true })
 
 onShow(() => {
   requireLogin()
@@ -137,5 +153,23 @@ async function startQuestion(question) {
   grid-template-columns: minmax(0, 1fr) 220rpx;
   gap: 16rpx;
   margin-bottom: 28rpx;
+}
+
+.chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4rpx;
+}
+
+.chip__name,
+.chip__desc {
+  display: block;
+}
+
+.chip__desc {
+  font-size: 21rpx;
+  line-height: 1.25;
+  opacity: 0.78;
 }
 </style>

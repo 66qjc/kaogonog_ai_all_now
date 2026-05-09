@@ -81,6 +81,7 @@ import { useRouter } from 'vue-router'
 import { LeftOutlined, AimOutlined, BarChartOutlined, FireOutlined, BulbOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
 import { useTargetedStore } from '@/stores/targeted'
 import { PROVINCES, POSITION_SYSTEMS } from '@/utils/constants'
+import { getJiangsuTargetedPosition } from '@/utils/jiangsuJobs'
 import EmptyState from '@/components/common/EmptyState.vue'
 
 const router = useRouter()
@@ -95,6 +96,8 @@ const provinceName = computed(() => {
 })
 
 const positionName = computed(() => {
+  const jiangsuPosition = getJiangsuTargetedPosition(targetedStore.selectedPosition)
+  if (jiangsuPosition) return jiangsuPosition.name
   const p = POSITION_SYSTEMS.find(p => p.code === targetedStore.selectedPosition)
   return p ? p.name : targetedStore.selectedPosition
 })
@@ -115,8 +118,8 @@ onMounted(() => {
 })
 
 async function startTargetedPractice() {
-  await targetedStore.fetchGeneratedQuestions(5)
-  if (targetedStore.generatedQuestions.length) {
+  const questions = await targetedStore.fetchGeneratedQuestions(5)
+  if (questions?.length) {
     router.push({ path: '/exam/prepare', query: { source: 'targeted' } })
   }
 }

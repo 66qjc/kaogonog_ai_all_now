@@ -34,7 +34,7 @@ export const JIANGSU_JOB_CATEGORIES = [
     code: 'D',
     title: 'D类 · 中小学教师岗',
     shortTitle: 'D类',
-    subtitle: '教育教学 / 班级管理',
+    subtitle: '',
     scope: '教师岗',
     rank: 4,
     hot: '教师专项'
@@ -44,7 +44,7 @@ export const JIANGSU_JOB_CATEGORIES = [
     code: 'E',
     title: 'E类 · 医疗卫生岗',
     shortTitle: 'E类',
-    subtitle: '医患沟通 / 公共卫生',
+    subtitle: '',
     scope: '医疗卫生',
     rank: 5,
     hot: '医疗岗专项'
@@ -54,12 +54,20 @@ export const JIANGSU_JOB_CATEGORIES = [
     code: '工勤',
     title: '工勤技能岗',
     shortTitle: '工勤',
-    subtitle: '服务规范 / 技能保障',
+    subtitle: '',
     scope: '工勤技能',
     rank: 6,
     hot: '技能岗'
   }
 ]
+
+export const JIANGSU_TARGETED_POSITIONS = JIANGSU_JOB_CATEGORIES.map((item) => ({
+  code: `jiangsu_${item.key}`,
+  name: item.title,
+  desc: item.subtitle,
+  categoryKey: item.key,
+  rank: item.rank
+}))
 
 export const JIANGSU_CITY_FILTERS = [
   { key: 'all', name: '全部' },
@@ -98,6 +106,10 @@ const TYPE_STEMS = {
 
 export function getJiangsuJobCategory(key = 'a') {
   return JIANGSU_JOB_CATEGORIES.find((item) => item.key === key) || JIANGSU_JOB_CATEGORIES[0]
+}
+
+export function getJiangsuTargetedPosition(code = '') {
+  return JIANGSU_TARGETED_POSITIONS.find((item) => item.code === code) || null
 }
 
 export function getJiangsuCityName(key = 'all') {

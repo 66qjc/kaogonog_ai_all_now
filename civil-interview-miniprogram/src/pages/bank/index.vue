@@ -16,6 +16,12 @@
           <text class="filter-row__value">{{ selectedCategoryName }}</text>
         </view>
       </picker>
+      <picker v-if="showPositionFilter" :range="positionNames" :value="positionIndex" @change="onPositionChange">
+        <view class="filter-row">
+          <text>岗位系统</text>
+          <text class="filter-row__value">{{ selectedPositionName }}</text>
+        </view>
+      </picker>
       <view class="search-row">
         <input v-model="keyword" class="field search-row__input" placeholder="搜索题干关键词" confirm-type="search" @confirm="applySearch" />
         <button class="secondary-button search-row__button" @tap="applySearch">搜索</button>
@@ -53,6 +59,7 @@ import QuestionCard from '../../components/QuestionCard.vue'
 import { useQuestionBankStore } from '../../stores/questionBank'
 import { useUserStore } from '../../stores/user'
 import { PROVINCES, QUESTION_CATEGORIES } from '../../utils/constants'
+import { JIANGSU_TARGETED_POSITIONS } from '../../utils/jiangsuJobs'
 import { requireLogin } from '../../utils/navigation'
 
 const bankStore = useQuestionBankStore()
@@ -60,20 +67,29 @@ const userStore = useUserStore()
 const keyword = ref(bankStore.filters.keyword || '')
 const selectedProvince = ref(userStore.selectedProvince || 'national')
 const selectedDimension = ref('')
+const selectedPosition = ref('')
 const provinceOptions = computed(() => userStore.provinces.length ? userStore.provinces : PROVINCES)
 const provinceNames = computed(() => provinceOptions.value.map((item) => item.name))
 const categoryNames = computed(() => QUESTION_CATEGORIES.map((item) => item.name))
+const showPositionFilter = computed(() => selectedProvince.value === 'jiangsu')
+const positionOptions = computed(() => [
+  { code: '', name: '全部岗位系统' },
+  ...JIANGSU_TARGETED_POSITIONS
+])
+const positionNames = computed(() => positionOptions.value.map((item) => item.name))
 const provinceIndex = computed(() => Math.max(0, provinceOptions.value.findIndex((item) => item.code === selectedProvince.value)))
 const categoryIndex = computed(() => Math.max(0, QUESTION_CATEGORIES.findIndex((item) => item.key === selectedDimension.value)))
+const positionIndex = computed(() => Math.max(0, positionOptions.value.findIndex((item) => item.code === selectedPosition.value)))
 const selectedProvinceName = computed(() => provinceOptions.value[provinceIndex.value]?.name || '国考')
 const selectedCategoryName = computed(() => QUESTION_CATEGORIES[categoryIndex.value]?.name || '全部题型')
+const selectedPositionName = computed(() => positionOptions.value[positionIndex.value]?.name || '全部岗位系统')
 
 onShow(async () => {
   if (!requireLogin()) return
   await userStore.loadProvinces().catch(() => null)
   selectedProvince.value = userStore.selectedProvince || 'national'
   if (!bankStore.questions.length) {
-    bankStore.setFilters({ province: '', dimension: '', keyword: '' })
+    bankStore.setFilters({ province: '', dimension: '', position: '', keyword: '' })
     fetchFirstPage()
   }
 })
@@ -85,6 +101,7 @@ function fetchFirstPage() {
 function onProvinceChange(event) {
   const selected = provinceOptions.value[Number(event.detail.value)]
   selectedProvince.value = selected?.code || 'national'
+  if (selectedProvince.value !== 'jiangsu') selectedPosition.value = ''
 }
 
 function onCategoryChange(event) {
@@ -92,10 +109,16 @@ function onCategoryChange(event) {
   selectedDimension.value = selected?.key || ''
 }
 
+function onPositionChange(event) {
+  const selected = positionOptions.value[Number(event.detail.value)]
+  selectedPosition.value = selected?.code || ''
+}
+
 function applySearch() {
   bankStore.setFilters({
     province: selectedProvince.value || '',
     dimension: selectedDimension.value || '',
+    position: showPositionFilter.value ? selectedPosition.value || '' : '',
     keyword: keyword.value.trim()
   })
   fetchFirstPage()

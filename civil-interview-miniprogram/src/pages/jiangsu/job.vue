@@ -3,7 +3,7 @@
     <view class="job-hero card">
       <text class="job-hero__eyebrow">2026 江苏事业单位统考</text>
       <text class="job-hero__title">{{ category.title }}</text>
-      <text class="job-hero__desc">{{ category.scope }} · {{ category.subtitle }}</text>
+      <text class="job-hero__desc">{{ categoryMeta }}</text>
       <text class="job-hero__tag">{{ category.hot }}</text>
     </view>
 
@@ -102,6 +102,7 @@ const filters = reactive({
 })
 
 const category = computed(() => getJiangsuJobCategory(categoryKey.value))
+const categoryMeta = computed(() => [category.value.scope, category.value.subtitle].filter(Boolean).join(' · '))
 const allItems = computed(() => buildJiangsuQuestionItems(category.value.key))
 const filteredItems = computed(() => filterJiangsuQuestionItems(allItems.value, filters))
 

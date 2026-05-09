@@ -8,7 +8,7 @@
         <div>
           <div class="jiangsu-job-hero__eyebrow">2026 江苏事业单位统考</div>
           <h1>{{ category.title }}</h1>
-          <p>{{ category.scope }} · {{ category.subtitle }}</p>
+          <p>{{ categoryMeta }}</p>
         </div>
         <a-tag color="blue">{{ category.hot }}</a-tag>
       </div>
@@ -86,6 +86,7 @@ import {
 
 const route = useRoute()
 const category = computed(() => getJiangsuJobCategory(String(route.params.category || 'a')))
+const categoryMeta = computed(() => [category.value.scope, category.value.subtitle].filter(Boolean).join(' · '))
 const allItems = computed(() => buildJiangsuQuestionItems(category.value.key))
 const filters = reactive({
   city: 'all',

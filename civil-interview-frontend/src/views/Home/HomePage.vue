@@ -41,7 +41,7 @@
           <div class="jiangsu-job-card__rank">{{ job.rank }}</div>
           <div class="jiangsu-job-card__body">
             <h3>{{ job.title }}</h3>
-            <p>{{ job.subtitle }}</p>
+            <p v-if="job.subtitle">{{ job.subtitle }}</p>
           </div>
           <RightOutlined class="jiangsu-job-card__arrow" />
         </div>

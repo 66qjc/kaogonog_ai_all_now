@@ -83,7 +83,7 @@
             </a-radio>
           </a-space>
         </a-radio-group>
-        <div class="practice-config">
+        <div v-if="showPracticeConfig" class="practice-config">
           <div class="practice-config__item">
             <span class="practice-config__label">题目数量</span>
             <a-input-number
@@ -97,12 +97,19 @@
           <div class="practice-config__item">
             <span class="practice-config__label">题目类型</span>
             <a-select
-              v-model:value="dimensionFilter"
-              allow-clear
+              v-model:value="dimensionFilters"
+              mode="multiple"
               placeholder="随机题型"
-              style="width: 180px"
+              style="width: 260px"
+              :max-tag-count="2"
+              @change="handleDimensionFiltersChange"
             >
-              <a-select-option v-for="item in questionCategoryOptions" :key="item.key" :value="item.key">
+              <a-select-option
+                v-for="item in questionCategoryOptions"
+                :key="item.key"
+                :value="item.key"
+                :disabled="item.key === RANDOM_DIMENSION_KEY && selectedSpecificDimensionCount > 0"
+              >
                 {{ item.name }}
               </a-select-option>
             </a-select>
@@ -153,7 +160,7 @@ const videoEnabled = ref(true)
 const examMode = ref('free')
 const enteringExam = ref(false)
 const questionCount = ref(5)
-const dimensionFilter = ref(undefined)
+const dimensionFilters = ref(['random'])
 
 // 候考室
 const waitingRoom = ref(false)
@@ -170,7 +177,9 @@ let pendingQuestions = null
 const DEFAULT_EXAM_QUESTION_COUNT = 5
 const RANDOM_FETCH_BUFFER = 6
 const RANDOM_FETCH_ATTEMPTS = 3
+const RANDOM_DIMENSION_KEY = 'random'
 const questionCategoryOptions = [
+  { key: RANDOM_DIMENSION_KEY, name: '随机题型' },
   { key: 'analysis', name: '综合分析' },
   { key: 'practical', name: '组织管理' },
   { key: 'emergency', name: '应急应变' },
@@ -180,6 +189,18 @@ const questionCategoryOptions = [
 ]
 
 const isTrialEntry = computed(() => String(route.query.trial || '') === '1' && !billingStore.isPaid)
+const showPracticeConfig = computed(() => examMode.value === 'free')
+const selectedSpecificDimensions = computed(() => (
+  dimensionFilters.value.filter((item) => item && item !== RANDOM_DIMENSION_KEY)
+))
+const selectedSpecificDimensionCount = computed(() => selectedSpecificDimensions.value.length)
+const selectedDimensionParam = computed(() => selectedSpecificDimensions.value.join(','))
+
+function handleDimensionFiltersChange(values = []) {
+  const selected = Array.isArray(values) ? values.filter(Boolean) : []
+  const specific = selected.filter((item) => item !== RANDOM_DIMENSION_KEY)
+  dimensionFilters.value = specific.length ? specific : [RANDOM_DIMENSION_KEY]
+}
 
 function notifyUnsupportedQuestions(unsupportedCount, replaced = false) {
   if (!unsupportedCount) return
@@ -201,7 +222,7 @@ async function fetchScoringReadyRandomQuestions(count = DEFAULT_EXAM_QUESTION_CO
     const batch = await getRandomQuestions({
       province: userStore.selectedProvince,
       count: Math.max(targetCount + RANDOM_FETCH_BUFFER, targetCount),
-      dimension: dimensionFilter.value || '',
+      dimension: options.dimension ?? (examMode.value === 'free' ? selectedDimensionParam.value : ''),
       ...options.params
     })
 
@@ -422,7 +443,12 @@ async function enterExam() {
   let questions = []
   const source = String(route.query.source || '')
   const recommendedId = String(route.query.questionId || '')
-  const targetQuestionCount = isTrialEntry.value ? 1 : Math.max(1, Math.min(10, Number(questionCount.value) || DEFAULT_EXAM_QUESTION_COUNT))
+  const freeQuestionCount = Math.max(1, Math.min(10, Number(questionCount.value) || DEFAULT_EXAM_QUESTION_COUNT))
+  const targetQuestionCount = isTrialEntry.value
+    ? 1
+    : examMode.value === 'mock'
+      ? DEFAULT_EXAM_QUESTION_COUNT
+      : freeQuestionCount
 
   try {
     if (isTrialEntry.value) {
@@ -565,6 +591,27 @@ async function startMockExam(questions) {
 .mode-desc {
   font-size: @font-size-xs;
   color: @text-secondary;
+}
+
+.practice-config {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid @border-color;
+}
+
+.practice-config__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.practice-config__label {
+  flex: 0 0 auto;
+  color: @text-primary;
+  font-weight: 600;
 }
 
 .waiting-room {

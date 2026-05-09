@@ -312,4 +312,10 @@ POSITION_NAMES = {
     "finance": "银保监会",
     "diplomacy": "外交系统",
     "prison": "监狱系统",
+    "jiangsu_a": "A类 · 综合管理岗",
+    "jiangsu_b": "B类 · 社会科学专技岗",
+    "jiangsu_c": "C类 · 自然科学专技岗",
+    "jiangsu_d": "D类 · 中小学教师岗",
+    "jiangsu_e": "E类 · 医疗卫生岗",
+    "jiangsu_worker": "工勤技能岗",
 }

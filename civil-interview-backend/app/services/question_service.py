@@ -35,6 +35,12 @@ POSITION_ALIASES = {
     "finance": ("银保监", "金融监管"),
     "diplomacy": ("外交",),
     "prison": ("监狱", "狱警"),
+    "jiangsu_a": ("A类", "综合管理岗", "综合管理", "省属", "事业单位"),
+    "jiangsu_b": ("B类", "社会科学专技岗", "法律", "经济", "会计", "社科"),
+    "jiangsu_c": ("C类", "自然科学专技岗", "计算机", "工程", "农技", "自然科学"),
+    "jiangsu_d": ("D类", "中小学教师岗", "教师", "教育教学", "班级管理"),
+    "jiangsu_e": ("E类", "医疗卫生岗", "医疗", "卫生", "医患沟通", "公共卫生"),
+    "jiangsu_worker": ("工勤技能岗", "工勤", "技能保障", "服务规范"),
 }
 
 
@@ -566,6 +572,12 @@ def _question_matches_position(question: Question, position: str) -> bool:
     return any(alias in haystack for alias in POSITION_ALIASES.get(position, ()))
 
 
+def _apply_position_filter(questions: list[Question], position: str) -> list[Question]:
+    if not position:
+        return questions
+    return [question for question in questions if _question_matches_position(question, position)]
+
+
 def _question_matches_province(question: Question, province: str) -> bool:
     if not province or province == "all":
         return True
@@ -678,6 +690,7 @@ def list_questions(
     keyword: str = "",
     dimension: str = "",
     province: str = "",
+    position: str = "",
     current: int = 1,
     page_size: int = 10,
 ) -> dict:
@@ -688,8 +701,14 @@ def list_questions(
         query = query.filter(Question.dimension == dimension)
     if province and province != "all":
         query = query.filter(Question.province == province)
-    total = query.count()
-    rows = query.offset((current - 1) * page_size).limit(page_size).all()
+    if position:
+        rows = _apply_position_filter(query.all(), position)
+        total = len(rows)
+        start = (current - 1) * page_size
+        rows = rows[start:start + page_size]
+    else:
+        total = query.count()
+        rows = query.offset((current - 1) * page_size).limit(page_size).all()
     return {
         "list": [_q_to_dict(q) for q in rows],
         "total": total,
@@ -698,13 +717,15 @@ def list_questions(
     }
 
 
-def get_random_questions(db: Session, province: str = "national", count: int = 5, dimension: str = "") -> List[dict]:
+def get_random_questions(db: Session, province: str = "national", count: int = 5, dimension: str = "", position: str = "") -> List[dict]:
     query = db.query(Question)
     if province and province != "all":
         query = query.filter(Question.province.in_([province, "national"]))
     if dimension:
-        query = query.filter(Question.dimension == dimension)
-    all_qs = query.all()
+        dimensions = [item.strip() for item in str(dimension).split(",") if item.strip()]
+        if dimensions:
+            query = query.filter(Question.dimension.in_(dimensions))
+    all_qs = _apply_position_filter(query.all(), position)
     count = min(count, len(all_qs))
     return [_q_to_dict(q) for q in random.sample(all_qs, count)] if all_qs else []
 
