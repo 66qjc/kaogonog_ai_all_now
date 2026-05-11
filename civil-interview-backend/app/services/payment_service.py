@@ -6,8 +6,11 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.entities import PaymentOrder, SubscriptionPackage, User, UserSubscription
-from app.schemas.common import AuthUser, PaymentCallbackRequest, PaymentOrderCreateRequest
+from app.schemas.common import AuthUser, PaymentCallbackRequest, PaymentOrderCreateRequest, PaymentRefundApplyRequest, PaymentRefundStatsRequest
 from app.services.wechat_pay_service import wechat_pay_service
+
+
+REFUND_STATUS = "refunded"
 
 
 def _get_user(db: Session, current_user: AuthUser) -> User:
@@ -46,6 +49,50 @@ def _serialize_payment_response(order: PaymentOrder, package: SubscriptionPackag
         **_serialize_order(order),
         "packageName": package.package_name,
         "payParams": pay_payload or {},
+    }
+
+
+def _assert_admin(current_user: AuthUser) -> None:
+    if not current_user.isAdmin and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+
+
+def _minutes_to_hours(minutes: int) -> int:
+    return max((int(minutes or 0) + 59) // 60, 0)
+
+
+def _get_subscription_for_order(db: Session, order: PaymentOrder) -> UserSubscription | None:
+    return db.query(UserSubscription).filter(
+        UserSubscription.source_order_no == order.order_no,
+        UserSubscription.username == order.username,
+    ).first()
+
+
+def _build_refund_balance(order: PaymentOrder, subscription: UserSubscription | None) -> dict:
+    total_minutes = int(subscription.total_minutes or 0) if subscription else 0
+    used_minutes = int(subscription.used_minutes or 0) if subscription else 0
+    refundable_minutes = max(total_minutes - used_minutes, 0)
+    total_hours = _minutes_to_hours(total_minutes)
+    used_hours = _minutes_to_hours(used_minutes)
+    refundable_hours = _minutes_to_hours(refundable_minutes)
+    hourly_amount = round(float(order.amount or 0) / total_hours, 2) if total_hours > 0 else 0
+    refundable_amount = round(hourly_amount * refundable_hours, 2)
+    refund_payload = order.extra_payload if isinstance(order.extra_payload, dict) else {}
+    return {
+        **_serialize_order(order),
+        "username": order.username,
+        "packageCode": order.package_code,
+        "packageType": order.package_type,
+        "totalMinutes": total_minutes,
+        "usedMinutes": used_minutes,
+        "refundableMinutes": refundable_minutes,
+        "totalHours": total_hours,
+        "usedHours": used_hours,
+        "refundableHours": refundable_hours,
+        "hourlyAmount": hourly_amount,
+        "refundableAmount": refundable_amount,
+        "refundStatus": order.status,
+        "refundInfo": refund_payload.get("refund", {}),
     }
 
 
@@ -98,6 +145,57 @@ def get_payment_order(db: Session, current_user: AuthUser, order_no: str) -> dic
         "message": "订单查询接口不重复生成支付签名，如需重新拉起支付，请重新创建订单或补充预下单刷新接口。",
     }
     return _serialize_payment_response(order, package, pay_payload)
+
+
+def get_refund_balance_stats(db: Session, current_user: AuthUser, data: PaymentRefundStatsRequest) -> dict:
+    _assert_admin(current_user)
+    query = db.query(PaymentOrder).filter(PaymentOrder.status.in_(["paid", REFUND_STATUS]))
+    if data.username:
+        query = query.filter(PaymentOrder.username == data.username)
+    if data.orderNo:
+        query = query.filter(PaymentOrder.order_no == data.orderNo)
+    orders = query.order_by(PaymentOrder.created_at.desc(), PaymentOrder.id.desc()).all()
+    items = [_build_refund_balance(order, _get_subscription_for_order(db, order)) for order in orders]
+    return {
+        "list": items,
+        "total": len(items),
+        "summary": {
+            "totalPaidAmount": round(sum(item["amount"] for item in items), 2),
+            "totalHours": sum(item["totalHours"] for item in items),
+            "usedHours": sum(item["usedHours"] for item in items),
+            "refundableHours": sum(item["refundableHours"] for item in items),
+            "refundableAmount": round(sum(item["refundableAmount"] for item in items), 2),
+        },
+    }
+
+
+def apply_refund_by_hours(db: Session, current_user: AuthUser, data: PaymentRefundApplyRequest) -> dict:
+    _assert_admin(current_user)
+    order = db.query(PaymentOrder).filter(PaymentOrder.order_no == data.orderNo).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    if order.status not in ["paid", REFUND_STATUS]:
+        raise HTTPException(status_code=400, detail="仅支持已支付订单统计退款")
+
+    subscription = _get_subscription_for_order(db, order)
+    balance = _build_refund_balance(order, subscription)
+    refunded_hours = balance["refundableHours"] if data.refundedHours is None else min(int(data.refundedHours), balance["refundableHours"])
+    refund_payload = dict(order.extra_payload) if isinstance(order.extra_payload, dict) else {}
+    refund_payload["refund"] = {
+        "refundedHours": refunded_hours,
+        "refundAmount": round(balance["hourlyAmount"] * refunded_hours, 2),
+        "remark": data.refundRemark or "",
+        "refundedAt": datetime.now(timezone.utc).isoformat(),
+        "operator": current_user.username,
+    }
+    order.extra_payload = refund_payload
+    order.status = REFUND_STATUS
+    if subscription:
+        subscription.status = REFUND_STATUS
+        subscription.total_minutes = min(int(subscription.used_minutes or 0), int(subscription.total_minutes or 0))
+    db.commit()
+    db.refresh(order)
+    return {"success": True, "refund": _build_refund_balance(order, subscription)}
 
 
 def _sync_user_preferences_subscription(user: User, package: SubscriptionPackage, subscription: UserSubscription):
