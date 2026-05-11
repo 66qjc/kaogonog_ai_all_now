@@ -64,13 +64,13 @@
       <text class="tips-card__line">真机调试时，后端地址需使用手机可访问的域名或局域网 IP。</text>
     </view>
 
-    <button class="primary-button" :disabled="readonlyMode" :loading="loading" @tap="startPractice">进入考场</button>
+    <button class="primary-button" :disabled="loading || accessLoading" :loading="loading || accessLoading" @tap="startPractice">进入考场</button>
   </view>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useExamStore } from '../../stores/exam'
 import { useBillingStore } from '../../stores/billing'
 import { useQuestionBankStore } from '../../stores/questionBank'
@@ -90,8 +90,15 @@ const count = ref(DEFAULT_EXAM_QUESTION_COUNT)
 const mode = ref('free')
 const selectedDimensions = ref(['random'])
 const loading = ref(false)
+const accessLoading = ref(false)
 const trial = ref(false)
-const readonlyMode = computed(() => !trial.value && !billingStore.isPaid)
+const hasFullAccess = computed(() => {
+  return billingStore.isPaid
+    || userStore.isAdmin
+    || userStore.userInfo?.billing?.isPaid === true
+    || userStore.userInfo?.permissions?.canAccessPremiumModules === true
+})
+const readonlyMode = computed(() => !trial.value && !hasFullAccess.value)
 const RANDOM_DIMENSION_KEY = 'random'
 const questionCategoryOptions = [
   { key: RANDOM_DIMENSION_KEY, name: '随机题型' },
@@ -110,9 +117,28 @@ const selectedCategoryName = computed(() => {
 
 onLoad((query) => {
   const requestedTrial = String(query?.trial || '') === '1'
-  trial.value = requestedTrial && !billingStore.isPaid
+  trial.value = requestedTrial && !hasFullAccess.value
   if (trial.value) count.value = 1
 })
+
+onShow(() => {
+  refreshAccessState().catch(() => null)
+})
+
+async function refreshAccessState() {
+  if (!userStore.isAuthenticated) return false
+  accessLoading.value = true
+  try {
+    await userStore.loadUserInfo()
+    if (hasFullAccess.value && trial.value) {
+      trial.value = false
+      count.value = DEFAULT_EXAM_QUESTION_COUNT
+    }
+    return hasFullAccess.value
+  } finally {
+    accessLoading.value = false
+  }
+}
 
 function decreaseCount() {
   count.value = Math.max(1, count.value - 1)
@@ -146,8 +172,12 @@ function toggleQuestionType(key) {
 
 async function startPractice() {
   if (!requireLogin()) return
-  if (readonlyMode.value) return
   if (loading.value) return
+  await refreshAccessState().catch(() => null)
+  if (readonlyMode.value) {
+    toast('请先开通套餐后进入正式考场')
+    return
+  }
   loading.value = true
   showLoading('抽取题目')
   try {

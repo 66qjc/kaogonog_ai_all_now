@@ -6,13 +6,22 @@
   "versionCode": "100",
   "transformPx": false,
   "mp-weixin": {
-    "appid": "",
+    "appid": "wxa31c6e32dfa4b178",
     "setting": {
       "urlCheck": false,
       "es6": true,
       "postcss": true,
       "minified": true
     },
+    "permission": {
+      "scope.record": {
+        "desc": "用于录制面试作答音频并生成测评结果"
+      },
+      "scope.camera": {
+        "desc": "用于录制面试作答视频并生成测评结果"
+      }
+    },
+    "lazyCodeLoading": "requiredComponents",
     "usingComponents": true
   },
   "h5": {

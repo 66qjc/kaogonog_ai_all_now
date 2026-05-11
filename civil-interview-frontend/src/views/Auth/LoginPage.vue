@@ -97,12 +97,11 @@
 
 <script setup>
 import { ref, reactive, h } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '@/stores/user'
 
-const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
@@ -142,13 +141,21 @@ const registerRules = {
   ]
 }
 
+function normalizeRedirectTarget(value) {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//')) {
+    return '/'
+  }
+  return raw || '/'
+}
+
 async function handleLogin() {
   loading.value = true
   try {
     await userStore.login(loginForm.username, loginForm.password)
     message.success('登录成功')
-    const redirect = route.query.redirect || '/'
-    router.push(redirect)
+    const redirect = normalizeRedirectTarget(route.query.redirect)
+    window.location.replace(redirect)
   } catch (e) {
     const msg = e.normalizedMessage || e.response?.data?.detail || '登录失败'
     message.error(msg)

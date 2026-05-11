@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { login as loginApi, register as registerApi } from '../api/auth'
 import { getProvinces, getUserInfo, updatePreferences } from '../api/user'
+import { useBillingStore } from './billing'
 import {
   DEFAULT_PREFERENCES,
   PREFERENCES_STORAGE_KEY,
@@ -51,7 +52,15 @@ export const useUserStore = defineStore('user', {
       avatar: '',
       province: readStorage(PROVINCE_STORAGE_KEY, 'national'),
       role: 'user',
-      isAdmin: false
+      isAdmin: false,
+      billing: {
+        planType: 'trial',
+        isPaid: false
+      },
+      permissions: {
+        canManageQuestionBank: false,
+        canAccessPremiumModules: false
+      }
     },
     selectedProvince: readStorage(PROVINCE_STORAGE_KEY, 'national'),
     provinces: PROVINCES,
@@ -99,15 +108,37 @@ export const useUserStore = defineStore('user', {
         avatar: '',
         province: 'national',
         role: 'user',
-        isAdmin: false
+        isAdmin: false,
+        billing: {
+          planType: 'trial',
+          isPaid: false
+        },
+        permissions: {
+          canManageQuestionBank: false,
+          canAccessPremiumModules: false
+        }
       }
       uni.removeStorageSync(TOKEN_STORAGE_KEY)
       uni.removeStorageSync(USERNAME_STORAGE_KEY)
     },
 
     async loadUserInfo() {
+      const billingStore = useBillingStore()
       const info = await getUserInfo({ skipErrorHandler: true })
       const username = info?.id || this.username
+      const isAdmin = !!info?.isAdmin || username === 'admin'
+      const permissions = {
+        canManageQuestionBank: isAdmin || !!info?.permissions?.canManageQuestionBank,
+        canAccessPremiumModules: isAdmin || !!info?.permissions?.canAccessPremiumModules
+      }
+      const billing = {
+        planType: info?.billing?.planType || 'trial',
+        remainingSeconds: Number(info?.billing?.remainingSeconds || 0),
+        monthlyExpireAt: Number(info?.billing?.monthlyExpireAt || 0),
+        activatedAt: Number(info?.billing?.activatedAt || 0),
+        orderHistory: Array.isArray(info?.billing?.orderHistory) ? info.billing.orderHistory : [],
+        isPaid: isAdmin || permissions.canAccessPremiumModules || info?.billing?.isPaid === true
+      }
       this.username = username
       if (username) uni.setStorageSync(USERNAME_STORAGE_KEY, username)
 
@@ -117,8 +148,11 @@ export const useUserStore = defineStore('user', {
         avatar: info?.avatar || '',
         province: info?.province || this.selectedProvince || 'national',
         role: info?.role || 'user',
-        isAdmin: !!info?.isAdmin || username === 'admin'
+        isAdmin,
+        billing,
+        permissions
       }
+      billingStore.applyBackendState(billing, permissions)
       if (info?.province) this.setProvince(info.province)
       if (info?.preferences) {
         this.preferences = normalizePreferences({

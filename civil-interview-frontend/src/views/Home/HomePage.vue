@@ -123,19 +123,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import { PlayCircleOutlined, RightOutlined } from '@ant-design/icons-vue'
-import echarts from '@/utils/echarts'
 import { useHistoryStore } from '@/stores/history'
 import { useUserStore } from '@/stores/user'
 import { formatDate } from '@/utils/formatter'
 import { GRADE_CONFIG, DIMENSIONS, WEAK_THRESHOLD } from '@/utils/constants'
 import { JIANGSU_JOB_CATEGORIES } from '@/utils/jiangsuJobs'
 import ScoreRing from '@/components/common/ScoreRing.vue'
-import RadarChart from '@/components/common/RadarChart.vue'
-import WeaknessAnalysis from '@/components/common/WeaknessAnalysis.vue'
-import SmartRecommendation from '@/components/common/SmartRecommendation.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+
+const RadarChart = defineAsyncComponent(() => import('@/components/common/RadarChart.vue'))
+const WeaknessAnalysis = defineAsyncComponent(() => import('@/components/common/WeaknessAnalysis.vue'))
+const SmartRecommendation = defineAsyncComponent(() => import('@/components/common/SmartRecommendation.vue'))
 
 const historyStore = useHistoryStore()
 const userStore = useUserStore()
@@ -194,6 +194,8 @@ onMounted(async () => {
 
   // 渲染趋势图
   if (trendChartRef.value && historyStore.trendData.length) {
+    const { default: echarts } = await import('@/utils/echarts')
+    if (!trendChartRef.value) return
     chart = echarts.init(trendChartRef.value)
     chart.setOption({
       grid: { top: 10, right: 16, bottom: 24, left: 40 },

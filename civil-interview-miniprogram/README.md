@@ -2,7 +2,7 @@
 
 这是现有 `civil-interview-frontend` 的并行小程序前端，基于 uni-app + Vue 3 构建。网页端目录保持不变，小程序端默认复用 `civil-interview-backend` 的业务 API。
 
-## 开发
+## 开发（本机）
 
 ```bash
 cd civil-interview-miniprogram
@@ -13,19 +13,59 @@ npm run dev:mp-weixin
 
 将 `unpackage/dist/dev/mp-weixin` 导入微信开发者工具即可预览。
 
-默认 API 地址为 `http://127.0.0.1:8050`。微信开发者工具运行在 Windows 时，`127.0.0.1` 指向 Windows 本机；如果后端跑在 WSL、虚拟机、远程服务器或另一台电脑上，请在 `.env` 中将 `VITE_API_BASE` 改成 Windows/手机可访问的地址，例如：
+默认小程序开发 API 地址为 `http://127.0.0.1:8050`。  
+微信开发者工具运行在 Windows 时，`127.0.0.1` 指向 Windows 本机；如果后端跑在 WSL、虚拟机、远程服务器或另一台电脑上，请改 `VITE_API_BASE_MP_WEIXIN` 为可访问地址，例如：
 
 ```env
-VITE_API_BASE=http://192.168.1.23:8050
+VITE_API_BASE_MP_WEIXIN=http://192.168.1.23:8050
 ```
 
-修改 `.env` 后必须重新构建：
+开发构建（development）：
 
 ```bash
-npm run build:mp-weixin
+npm run build:mp-weixin:dev
 ```
 
 然后把 `dist/build/mp-weixin` 导入微信开发者工具。不要导入 `civil-interview-miniprogram` 源码目录，否则微信工具会提示根目录找不到 `app.json`。
+
+## 生产构建（服务器）
+
+生产构建会读取 `.env.production`：
+
+```bash
+npm run build:mp-weixin:prod
+```
+
+当前默认小程序生产 API：
+
+```env
+VITE_API_BASE_MP_WEIXIN=https://xzqianmianyuzhoukeji.com/api
+```
+
+## 微信小程序配置要点
+
+1. 小程序端请求地址必须是完整 URL（不能只写 `/api`）。
+2. 真机调试/线上版要求 `https`，并在小程序后台配置 request 合法域名。
+3. 开发者工具本地调试可临时关闭 URL 校验（本项目 `project.config.json` 已 `urlCheck: false`），但这不等于真机可用。
+4. 若要临时覆盖 API 地址（不改代码），可在控制台执行：
+
+```js
+uni.setStorageSync('civil_runtime_api_base', 'http://可访问地址:8050')
+```
+
+重启小程序后生效。
+
+## 按需注入与用时注入
+
+已按微信官方文档启用按需注入配置：
+
+```json
+"lazyCodeLoading": "requiredComponents"
+```
+
+说明：
+- 该配置可减少启动注入代码量，优化启动速度和内存占用。
+- 若要继续用「用时注入」，需要为重量级自定义组件配置占位组件（placeholder），让组件在真正渲染时再注入。
 
 ## 页面覆盖
 

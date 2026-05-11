@@ -2,6 +2,7 @@
   "easycom": {
     "autoscan": true
   },
+  "lazyCodeLoading": "requiredComponents",
   "pages": [
     {
       "path": "pages/login/index",

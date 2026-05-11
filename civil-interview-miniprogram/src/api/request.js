@@ -1,11 +1,45 @@
 import { TOKEN_STORAGE_KEY, USERNAME_STORAGE_KEY } from '../utils/constants'
 import { toast } from '../utils/navigation'
 
-export const API_BASE = (import.meta.env.VITE_API_BASE || 'http://10.5.186.17:8003').replace(/\/$/, '')
+const RUNTIME_API_BASE_KEY = 'civil_runtime_api_base'
+const STALE_API_BASE_PATTERNS = [
+  /xzqianmianyuzhoukeji\.cn/i
+]
+
+function normalizeBase(base) {
+  return String(base || '').trim().replace(/\/$/, '')
+}
+
+function isStaleApiBase(base) {
+  return STALE_API_BASE_PATTERNS.some((pattern) => pattern.test(String(base || '')))
+}
+
+function resolveApiBase() {
+  const runtimeBase = normalizeBase(uni.getStorageSync(RUNTIME_API_BASE_KEY))
+  if (runtimeBase) {
+    if (!isStaleApiBase(runtimeBase)) return runtimeBase
+    uni.removeStorageSync(RUNTIME_API_BASE_KEY)
+  }
+
+  const h5Base = normalizeBase(import.meta.env.VITE_API_BASE_H5)
+  const mpWeixinBase = normalizeBase(import.meta.env.VITE_API_BASE_MP_WEIXIN)
+  const commonBase = normalizeBase(import.meta.env.VITE_API_BASE)
+
+  // #ifdef MP-WEIXIN
+  return mpWeixinBase || commonBase || 'http://127.0.0.1:8050'
+  // #endif
+  // #ifdef H5
+  return h5Base || commonBase || '/api'
+  // #endif
+  return mpWeixinBase || h5Base || commonBase || '/api'
+}
+
+export const API_BASE = resolveApiBase()
 
 function joinUrl(path = '') {
   const value = String(path || '')
   if (/^https?:\/\//.test(value)) return value
+  if (!API_BASE) return value
   return `${API_BASE}${value.startsWith('/') ? value : `/${value}`}`
 }
 
@@ -42,7 +76,7 @@ function normalizeNetworkError(err) {
     || rawMessage.includes('request:fail')
     || rawMessage.includes('timeout')
   ) {
-    return `后端服务连接失败：${API_BASE}。微信开发者工具在 Windows 中运行时，127.0.0.1 指向 Windows 本机；如果后端在 WSL、虚拟机或另一台机器，请把 .env 里的 VITE_API_BASE 改成可访问的局域网地址后重新构建。`
+    return `后端服务连接失败：${API_BASE || '(未配置 API 地址)'}。请检查 VITE_API_BASE_MP_WEIXIN / VITE_API_BASE_H5 配置，或在运行时通过 uni.setStorageSync('${RUNTIME_API_BASE_KEY}', 'http://可访问地址:8050') 覆盖后重启小程序。`
   }
   return rawMessage || '网络请求失败，请检查后端服务'
 }

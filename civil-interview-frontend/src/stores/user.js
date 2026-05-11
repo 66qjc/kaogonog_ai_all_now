@@ -108,6 +108,11 @@ function saveProvinceConfirmedToStorage(confirmed, username = '') {
   }
 }
 
+function isExplicitProvince(code = '') {
+  const normalized = String(code || '').trim()
+  return !!normalized && normalized !== 'national'
+}
+
 export const useUserStore = defineStore('user', {
   state: () => ({
     token: localStorage.getItem(TOKEN_STORAGE_KEY) || '',
@@ -226,14 +231,19 @@ export const useUserStore = defineStore('user', {
         }
       }
       this.email = info?.email || ''
-      this.selectedProvince = this.userInfo.province || loadProvinceForUser(activeUsername)
-      this.provinceConfirmed = loadProvinceConfirmedForUser(activeUsername)
+      const backendProvince = this.userInfo.province || ''
+      const backendProvinceIsExplicit = isExplicitProvince(backendProvince)
+      this.selectedProvince = backendProvince || loadProvinceForUser(activeUsername)
+      this.provinceConfirmed = loadProvinceConfirmedForUser(activeUsername) || backendProvinceIsExplicit
       this.preferences = normalizePreferences({
         ...loadPreferencesForUser(activeUsername),
         ...(info?.preferences || {})
       })
 
       saveProvinceToStorage(this.selectedProvince, activeUsername)
+      if (this.provinceConfirmed) {
+        saveProvinceConfirmedToStorage(true, activeUsername)
+      }
       savePreferencesToStorage(this.preferences, activeUsername)
 
       if (info?.billing) {

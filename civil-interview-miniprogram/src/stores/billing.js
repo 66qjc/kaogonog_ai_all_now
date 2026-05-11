@@ -22,9 +22,28 @@ const PLANS = {
 function loadState() {
   try {
     const raw = uni.getStorageSync(BILLING_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : { planType: 'trial', activatedAt: 0 }
+    return {
+      planType: 'trial',
+      activatedAt: 0,
+      isPaid: false,
+      planName: '',
+      status: '',
+      remainingSeconds: 0,
+      monthlyExpireAt: 0,
+      orderHistory: [],
+      ...(raw ? JSON.parse(raw) : {})
+    }
   } catch {
-    return { planType: 'trial', activatedAt: 0 }
+    return {
+      planType: 'trial',
+      activatedAt: 0,
+      isPaid: false,
+      planName: '',
+      status: '',
+      remainingSeconds: 0,
+      monthlyExpireAt: 0,
+      orderHistory: []
+    }
   }
 }
 
@@ -33,10 +52,17 @@ export const useBillingStore = defineStore('billing', {
 
   getters: {
     plan(state) {
+      if (state.isPaid && state.planType === 'trial') {
+        return {
+          key: 'paid',
+          title: state.planName || '已开通',
+          status: '已解锁完整训练模块'
+        }
+      }
       return PLANS[state.planType] || PLANS.trial
     },
     isPaid(state) {
-      return state.planType === 'hourly' || state.planType === 'monthly'
+      return state.isPaid === true || state.planType === 'hourly' || state.planType === 'monthly'
     }
   },
 
@@ -44,12 +70,38 @@ export const useBillingStore = defineStore('billing', {
     activate(planType) {
       this.planType = planType
       this.activatedAt = Date.now()
+      this.isPaid = planType === 'hourly' || planType === 'monthly'
+      this.planName = PLANS[planType]?.title || ''
+      this.status = this.isPaid ? 'active' : 'trial'
+      uni.setStorageSync(BILLING_STORAGE_KEY, JSON.stringify(this.$state))
+    },
+
+    applyBackendState(rawBilling = {}, permissions = {}) {
+      const billing = rawBilling && typeof rawBilling === 'object' ? rawBilling : {}
+      const planType = String(billing.planType || this.planType || 'trial')
+      const hasPremiumPermission = !!permissions?.canAccessPremiumModules
+      const backendPaid = billing.isPaid === true || hasPremiumPermission
+
+      this.planType = PLANS[planType] ? planType : 'trial'
+      this.activatedAt = Number(billing.activatedAt || this.activatedAt || 0)
+      this.isPaid = backendPaid
+      this.planName = String(billing.planName || PLANS[this.planType]?.title || '')
+      this.status = String(billing.status || '')
+      this.remainingSeconds = Math.max(0, Number(billing.remainingSeconds || 0))
+      this.monthlyExpireAt = Math.max(0, Number(billing.monthlyExpireAt || 0))
+      this.orderHistory = Array.isArray(billing.orderHistory) ? billing.orderHistory : this.orderHistory || []
       uni.setStorageSync(BILLING_STORAGE_KEY, JSON.stringify(this.$state))
     },
 
     reset() {
       this.planType = 'trial'
       this.activatedAt = 0
+      this.isPaid = false
+      this.planName = ''
+      this.status = ''
+      this.remainingSeconds = 0
+      this.monthlyExpireAt = 0
+      this.orderHistory = []
       uni.setStorageSync(BILLING_STORAGE_KEY, JSON.stringify(this.$state))
     }
   }
