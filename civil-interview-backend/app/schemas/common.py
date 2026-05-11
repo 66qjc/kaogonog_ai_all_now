@@ -98,6 +98,17 @@ class PaymentCallbackRequest(BaseModel):
     resourcePlain: Optional[Dict] = Field(default=None, validation_alias=AliasChoices("resourcePlain", "resource_plain"))
 
 
+class PaymentRefundStatsRequest(BaseModel):
+    username: Optional[str] = None
+    orderNo: Optional[str] = Field(default=None, validation_alias=AliasChoices("orderNo", "order_no"))
+
+
+class PaymentRefundApplyRequest(BaseModel):
+    orderNo: str = Field(validation_alias=AliasChoices("orderNo", "order_no"))
+    refundedHours: Optional[int] = Field(default=None, ge=0, validation_alias=AliasChoices("refundedHours", "refunded_hours"))
+    refundRemark: Optional[str] = Field(default=None, validation_alias=AliasChoices("refundRemark", "refund_remark"))
+
+
 # ===== Scoring =====
 class EvaluateRequest(BaseModel):
     questionId: str
