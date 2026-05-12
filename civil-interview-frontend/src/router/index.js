@@ -130,6 +130,12 @@ const routes = [
     meta: { title: '订单记录', layout: 'simple' }
   },
   {
+    path: '/admin/refunds',
+    name: 'RefundAdmin',
+    component: () => import('@/views/Billing/RefundAdminPage.vue'),
+    meta: { title: '余额与退款', layout: 'simple', requiresAdmin: true }
+  },
+  {
     path: '/support',
     name: 'SupportDesk',
     component: () => import('@/views/Support/SupportDeskPage.vue'),

@@ -53,6 +53,16 @@
         <span class="menu-item__label">{{ userStore.isAdmin ? '客服反馈后台' : '客服反馈中心' }}</span>
         <RightOutlined class="menu-item__arrow" />
       </div>
+      <div class="card menu-item" @click="$router.push('/profile/orders')">
+        <WalletOutlined class="menu-item__icon" />
+        <span class="menu-item__label">订单记录</span>
+        <RightOutlined class="menu-item__arrow" />
+      </div>
+      <div v-if="userStore.isAdmin" class="card menu-item" @click="$router.push('/admin/refunds')">
+        <UndoOutlined class="menu-item__icon" />
+        <span class="menu-item__label">余额与退款</span>
+        <RightOutlined class="menu-item__arrow" />
+      </div>
       <div class="card menu-item" @click="$router.push('/profile/account')">
         <SettingOutlined class="menu-item__icon" />
         <span class="menu-item__label">账号管理</span>
@@ -109,6 +119,8 @@ import {
   HistoryOutlined,
   StarOutlined,
   SettingOutlined,
+  UndoOutlined,
+  WalletOutlined,
   RightOutlined
 } from '@ant-design/icons-vue'
 import { useUserStore } from '@/stores/user'

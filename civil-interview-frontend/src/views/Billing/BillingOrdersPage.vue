@@ -4,7 +4,13 @@
       <a-button type="text" @click="$router.back()">
         <LeftOutlined /> 返回
       </a-button>
-      <h2>订单记录</h2>
+      <div>
+        <h2>订单记录</h2>
+        <p>展示服务器中的真实支付订单与套餐权益状态。</p>
+      </div>
+      <a-button :loading="loading" @click="loadOrders">
+        <ReloadOutlined /> 刷新
+      </a-button>
     </div>
 
     <div class="card billing-orders__summary">
@@ -14,24 +20,49 @@
       <a-button type="primary" @click="$router.push('/pricing')">查看套餐</a-button>
     </div>
 
-    <div v-if="billingStore.recentOrders.length" class="billing-orders__list">
-      <div v-for="order in billingStore.recentOrders" :key="order.id" class="card billing-order-item">
-        <div class="billing-order-item__main">
-          <div class="billing-order-item__title-row">
-            <h3>{{ order.title }}</h3>
-            <a-tag color="green">已支付</a-tag>
-          </div>
-          <p>{{ order.summary }}</p>
-          <div class="billing-order-item__meta">
-            <span>订单号：{{ order.id }}</span>
-            <span>金额：¥{{ order.amount }}</span>
-            <span>时间：{{ formatOrderTime(order.createdAt) }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <a-alert
+      v-if="errorText"
+      class="billing-orders__alert"
+      type="warning"
+      show-icon
+      :message="errorText"
+    />
 
-    <EmptyState v-else text="暂无本地订单记录，请先前往套餐页开通。">
+    <a-table
+      v-if="orders.length"
+      class="card billing-orders__table"
+      :columns="columns"
+      :data-source="orders"
+      :loading="loading"
+      :pagination="{ pageSize: 8 }"
+      row-key="orderNo"
+      size="middle"
+    >
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'orderNo'">
+          <div class="billing-orders__order-no">{{ record.orderNo }}</div>
+          <div class="billing-orders__sub">第三方：{{ record.thirdPartyOrderNo || '暂无' }}</div>
+        </template>
+        <template v-else-if="column.key === 'package'">
+          <strong>{{ getPackageName(record) }}</strong>
+          <div class="billing-orders__sub">{{ record.packageCode }}</div>
+        </template>
+        <template v-else-if="column.key === 'amount'">
+          ¥{{ formatAmount(record.amount) }}
+        </template>
+        <template v-else-if="column.key === 'status'">
+          <a-tag :color="getStatusColor(record.status)">{{ getStatusText(record.status) }}</a-tag>
+        </template>
+        <template v-else-if="column.key === 'createdAt'">
+          {{ formatDateTime(record.createdAt) }}
+        </template>
+        <template v-else-if="column.key === 'paidAt'">
+          {{ record.paidAt ? formatDateTime(record.paidAt) : '未支付' }}
+        </template>
+      </template>
+    </a-table>
+
+    <EmptyState v-else-if="!loading" text="暂无后端订单记录，请先前往套餐页创建订单。">
       <template #action>
         <a-button type="primary" @click="$router.push('/pricing')">去开通</a-button>
       </template>
@@ -40,14 +71,79 @@
 </template>
 
 <script setup>
-import { LeftOutlined } from '@ant-design/icons-vue'
+import { onMounted, ref } from 'vue'
+import { LeftOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { useBillingStore } from '@/stores/billing'
+import { getMyPaymentOrders } from '@/api/payment'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { normalizeBillingCopy } from '@/utils/billing'
 
 const billingStore = useBillingStore()
+const loading = ref(false)
+const orders = ref([])
+const errorText = ref('')
 
-function formatOrderTime(timestamp) {
-  const date = new Date(Number(timestamp) || Date.now())
+const columns = [
+  { title: '订单号', key: 'orderNo', width: 220 },
+  { title: '套餐', key: 'package' },
+  { title: '金额', key: 'amount', width: 100 },
+  { title: '状态', key: 'status', width: 110 },
+  { title: '创建时间', key: 'createdAt', width: 170 },
+  { title: '支付时间', key: 'paidAt', width: 170 }
+]
+
+onMounted(() => {
+  loadOrders()
+})
+
+async function loadOrders() {
+  loading.value = true
+  errorText.value = ''
+  try {
+    const response = await getMyPaymentOrders()
+    orders.value = Array.isArray(response?.list) ? response.list : []
+  } catch (error) {
+    errorText.value = error?.normalizedMessage || '订单记录加载失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+function getPackageName(record) {
+  if (record.packageCode === 'trial_3h') return '3小时体验包'
+  if (record.packageCode === 'monthly_1h_day') return '包月每日1小时'
+  if (record.packageCode === 'monthly_2h_day') return '包月每日2小时'
+  if (record.packageCode === 'premium_1000') return '高阶包月 1000元档'
+  if (record.packageCode === 'premium_2000') return '高阶包月 2000元档'
+  return normalizeBillingCopy(record.packageType || record.packageCode || '套餐')
+}
+
+function getStatusText(status = '') {
+  const value = String(status || '')
+  if (value === 'paid') return '已支付'
+  if (value === 'pending') return '待支付'
+  if (value === 'refunded') return '已退款'
+  if (value === 'closed') return '已关闭'
+  return value || '未知'
+}
+
+function getStatusColor(status = '') {
+  const value = String(status || '')
+  if (value === 'paid') return 'green'
+  if (value === 'pending') return 'gold'
+  if (value === 'refunded') return 'blue'
+  if (value === 'closed') return 'default'
+  return 'default'
+}
+
+function formatAmount(amount) {
+  return Number(amount || 0).toFixed(2)
+}
+
+function formatDateTime(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -61,9 +157,10 @@ function formatOrderTime(timestamp) {
 @import '@/styles/variables.less';
 
 .billing-orders__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
-  gap: 8px;
   margin-bottom: 16px;
 }
 
@@ -71,6 +168,12 @@ function formatOrderTime(timestamp) {
   margin: 0;
   color: @text-primary;
   font-size: @font-size-xl;
+}
+
+.billing-orders__header p {
+  margin: 4px 0 0;
+  color: @text-secondary;
+  font-size: @font-size-sm;
 }
 
 .billing-orders__summary {
@@ -103,43 +206,29 @@ function formatOrderTime(timestamp) {
   font-weight: 600;
 }
 
-.billing-orders__list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.billing-orders__alert {
+  margin-bottom: 14px;
 }
 
-.billing-order-item {
-  padding: 16px;
-  border: 1px solid rgba(27, 95, 170, 0.08);
-  box-shadow: 0 16px 30px rgba(21, 66, 126, 0.08);
+.billing-orders__table {
+  padding: 8px;
 }
 
-.billing-order-item__title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
-}
-
-.billing-order-item__title-row h3 {
-  margin: 0;
+.billing-orders__order-no {
   color: @text-primary;
-  font-size: @font-size-lg;
+  font-weight: 700;
 }
 
-.billing-order-item p {
-  margin: 0 0 10px;
-  color: @text-secondary;
-  line-height: 1.8;
-}
-
-.billing-order-item__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
+.billing-orders__sub {
+  margin-top: 2px;
   color: @text-secondary;
   font-size: @font-size-xs;
+}
+
+@media (max-width: 768px) {
+  .billing-orders__header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
 }
 </style>

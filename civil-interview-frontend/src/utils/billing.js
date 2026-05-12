@@ -59,6 +59,7 @@ export const BILLING_PLANS = [
   },
   {
     key: BILLING_PLAN_KEYS.HOURLY,
+    packageCode: 'trial_3h',
     badge: '按时',
     title: '3小时体验包',
     priceText: '¥99',
@@ -71,12 +72,13 @@ export const BILLING_PLANS = [
   },
   {
     key: BILLING_PLAN_KEYS.MONTHLY,
+    packageCode: 'monthly_1h_day',
     badge: '包月',
-    title: '30天畅练卡',
-    priceText: '¥1000',
-    description: '适合系统化备考和连续多天的高频训练。',
+    title: '包月每日1小时',
+    priceText: '¥299',
+    description: '适合系统化备考和连续多天的稳定训练。',
     features: [
-      '30天内不限次数使用',
+      '30天内每日1小时训练',
       '适合稳定推进训练计划',
       '无需关注剩余小时数'
     ]
@@ -116,7 +118,7 @@ export function normalizeBillingCopy(value = '') {
 
 export function getPlanTitle(planType) {
   if (planType === BILLING_PLAN_KEYS.HOURLY) return '3小时体验包'
-  if (planType === BILLING_PLAN_KEYS.MONTHLY) return '30天畅练卡'
+  if (planType === BILLING_PLAN_KEYS.MONTHLY) return '包月每日1小时'
   return '免费试用'
 }
 
@@ -128,6 +130,6 @@ export function getPlanActivationSummary(planType) {
 
 export function getPlanAmount(planType) {
   if (planType === BILLING_PLAN_KEYS.HOURLY) return 99
-  if (planType === BILLING_PLAN_KEYS.MONTHLY) return 1000
+  if (planType === BILLING_PLAN_KEYS.MONTHLY) return 299
   return 0
 }

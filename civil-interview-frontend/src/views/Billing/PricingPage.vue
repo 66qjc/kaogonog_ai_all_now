@@ -5,13 +5,13 @@
         <span class="pricing-hero__eyebrow">套餐方案</span>
         <h1>解锁更完整的面试训练</h1>
         <p>
-          试用用户可以先体验 1 道引导题。当前为前端演示版，
-          开通后可解锁完整模拟面试、定向备考和专项训练。
+          试用用户可以先体验 1 道引导题。套餐开通会创建后端订单，
+          微信支付 mock 模式下会自动模拟回调并同步权益。
         </p>
         <div class="pricing-hero__chips">
           <span>单题试用</span>
-          <span>路由级拦截</span>
-          <span>本地演示开通</span>
+          <span>后端订单</span>
+          <span>权益同步</span>
         </div>
       </div>
 
@@ -57,7 +57,7 @@
       <div class="pricing-risk__list">
         <div class="pricing-risk__item">账号权益建议仅限本人使用，不建议多人共用。</div>
         <div class="pricing-risk__item">多设备同时登录或多人切换使用，可能导致练习记录、录音、评分结果出现错位或覆盖。</div>
-        <div class="pricing-risk__item">当前演示版的支付权益以本地账号状态和当前浏览器数据为准，清理浏览器数据后可能需要重新同步。</div>
+        <div class="pricing-risk__item">当前支付以服务器订单和订阅状态为准；mock 支付仅用于联调流程，不代表真实扣款。</div>
         <div class="pricing-risk__item">如果出现订单、权限或设备异常，请通过个人中心的客服反馈入口联系管理员处理。</div>
       </div>
       <div class="pricing-risk__actions">
@@ -98,7 +98,8 @@
             size="large"
             block
             :type="isCurrentPlan(plan.key) ? 'default' : 'primary'"
-            @click="activatePlan(plan.key)"
+            :loading="purchasingPlanKey === plan.key"
+            @click="activatePlan(plan)"
           >
             {{ isCurrentPlan(plan.key) ? '当前套餐' : '立即开通' }}
           </a-button>
@@ -109,7 +110,7 @@
     <div class="pricing-support card">
       <div class="pricing-support__header">
         <h3>已解锁模块</h3>
-        <span>当前为纯前端演示</span>
+        <span>后端权益联动</span>
       </div>
       <div class="pricing-support__grid">
         <div v-for="moduleName in PREMIUM_MODULES" :key="moduleName" class="pricing-support__item">
@@ -117,14 +118,13 @@
         </div>
       </div>
       <p class="pricing-support__note">
-        当前页面仅提供本地演示开通。真实支付、订单校验以及后端权限联动，
-        后续再接入。
+        PC 端用于订单联调与权益同步；小程序端拿到真实 openId 后可使用同一套后端支付接口拉起微信支付。
       </p>
     </div>
 
     <a-modal
       v-model:open="successVisible"
-      title="开通成功"
+      :title="latestOrder?.status === 'paid' ? '开通成功' : '订单已创建'"
       :footer="null"
       @cancel="successVisible = false"
     >
@@ -134,7 +134,8 @@
         <p>{{ latestOrder.summary }}</p>
         <div class="pricing-success__meta">
           <span>订单号：{{ latestOrder.id }}</span>
-          <span>状态：已支付</span>
+          <span>状态：{{ latestOrder.statusText }}</span>
+          <span v-if="latestOrder.payMode">支付模式：{{ latestOrder.payMode }}</span>
         </div>
         <div class="pricing-success__actions">
           <a-button @click="goOrders">查看订单</a-button>
@@ -150,11 +151,14 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useBillingStore } from '@/stores/billing'
+import { useUserStore } from '@/stores/user'
+import { createPaymentOrder, mockWechatPaymentCallback } from '@/api/payment'
 import { BILLING_PLANS, BILLING_PLAN_KEYS, PREMIUM_MODULES } from '@/utils/billing'
 
 const route = useRoute()
 const router = useRouter()
 const billingStore = useBillingStore()
+const userStore = useUserStore()
 
 const plans = BILLING_PLANS
 const paywallSource = computed(() => String(route.query.source || billingStore.lastPaywallSource || ''))
@@ -162,6 +166,7 @@ const redirectTarget = computed(() => String(route.query.redirect || billingStor
 const trialQuestion = computed(() => billingStore.trialQuestion)
 const successVisible = ref(false)
 const latestOrder = ref(null)
+const purchasingPlanKey = ref('')
 
 function resolvePostPurchaseTarget() {
   const target = redirectTarget.value || '/'
@@ -196,10 +201,63 @@ function goOrders() {
   router.push('/profile/orders')
 }
 
-function activatePlan(planKey) {
-  latestOrder.value = billingStore.activatePlan(planKey)
-  message.success(`已开通：${latestOrder.value?.title || '套餐'}`)
-  successVisible.value = true
+function buildOrderView(order, plan, callbackResult = null) {
+  const paid = callbackResult?.success || order.status === 'paid'
+  return {
+    id: order.orderNo,
+    planType: plan.key,
+    title: order.packageName || plan.title,
+    amount: order.amount,
+    status: paid ? 'paid' : order.status,
+    statusText: paid ? '已支付' : '待支付',
+    payMode: order.payParams?.mode || '',
+    summary: paid
+      ? '后端订单已完成支付回调，权益已同步。'
+      : (order.payParams?.message || '订单已创建，请继续完成支付。'),
+    createdAt: order.createdAt
+  }
+}
+
+async function activatePlan(plan) {
+  if (!userStore.isAuthenticated) {
+    router.push({ path: '/login', query: { redirect: '/pricing' } })
+    return
+  }
+  if (!plan?.packageCode) {
+    message.warning('当前套餐暂未配置后端套餐编码')
+    return
+  }
+  purchasingPlanKey.value = plan.key
+  try {
+    const order = await createPaymentOrder({
+      packageCode: plan.packageCode,
+      payChannel: 'wechat',
+      scene: 'pc_web'
+    })
+
+    let callbackResult = null
+    if (order.payParams?.mode === 'mock') {
+      callbackResult = await mockWechatPaymentCallback({
+        orderNo: order.orderNo,
+        status: 'paid',
+        amountTotal: Math.round(Number(order.amount || 0) * 100),
+        callbackPayload: {
+          source: 'pc_pricing_page',
+          packageCode: order.packageCode
+        }
+      })
+      await userStore.loadUserInfo().catch(() => null)
+      billingStore.activatePlan(plan.key)
+      message.success(`已开通：${order.packageName || plan.title}`)
+    } else {
+      message.success('订单已创建，请在微信支付完成后等待回调同步')
+    }
+
+    latestOrder.value = buildOrderView(order, plan, callbackResult)
+    successVisible.value = true
+  } finally {
+    purchasingPlanKey.value = ''
+  }
 }
 </script>
 

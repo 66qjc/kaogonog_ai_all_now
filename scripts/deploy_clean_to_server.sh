@@ -72,7 +72,13 @@ ssh "${SSH_OPTS[@]}" "$SERVER" "rm -rf \
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "if grep -Eq '^DATABASE_URL=(mysql|mysql\\+)' '$REMOTE_LATEST/backend/.env'; then rm -f '$REMOTE_LATEST/backend/'*.db; fi"
 
-ssh "${SSH_OPTS[@]}" "$SERVER" "sudo nginx -t && curl -fsS http://127.0.0.1:8050/health >/dev/null"
-curl -fsS https://xzqianmianyuzhoukeji.com/api/health >/dev/null
+ssh "${SSH_OPTS[@]}" "$SERVER" "sudo nginx -t && for i in {1..20}; do curl -fsS http://127.0.0.1:8050/health >/dev/null && exit 0; sleep 1; done; curl -fsS http://127.0.0.1:8050/health >/dev/null"
+for i in {1..20}; do
+  curl -fsS https://xzqianmianyuzhoukeji.com/api/health >/dev/null && break
+  sleep 1
+  if [[ "$i" == "20" ]]; then
+    curl -fsS https://xzqianmianyuzhoukeji.com/api/health >/dev/null
+  fi
+done
 
 echo "Clean deploy finished."
