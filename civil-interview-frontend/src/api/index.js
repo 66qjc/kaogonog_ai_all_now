@@ -2,6 +2,7 @@ import axios from 'axios'
 import { message } from 'ant-design-vue'
 import router from '@/router'
 import { normalizeScoringErrorMessage } from '@/utils/scoringSupport'
+import { createRequestId, logger } from '@/utils/logger'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 const TOKEN_STORAGE_KEY = 'token'
@@ -11,6 +12,38 @@ const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/api',
   timeout: 180000
 })
+
+function nowMs() {
+  return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()
+}
+
+function requestDurationMs(config = {}) {
+  const startedAt = config.metadata?.started_at
+  return startedAt ? Math.round((nowMs() - startedAt) * 100) / 100 : undefined
+}
+
+function logApiCompleted(config = {}, statusCode = 0, error = null) {
+  const metadata = {
+    event: error ? 'api.request.failed' : 'api.request.completed',
+    request_id: config.metadata?.request_id,
+    user_id: localStorage.getItem(USERNAME_STORAGE_KEY) || '',
+    method: String(config.method || 'GET').toUpperCase(),
+    url: config.url,
+    status_code: statusCode,
+    duration_ms: requestDurationMs(config)
+  }
+
+  if (error) {
+    const write = statusCode >= 500 || statusCode === 0 ? logger.error : logger.warn
+    write('API request failed', {
+      ...metadata,
+      error
+    })
+    return
+  }
+
+  logger.debug('API request completed', metadata)
+}
 
 export function normalizeErrorMessage(payload, fallback = 'Request failed') {
   const detail = payload?.detail ?? payload?.message ?? payload
@@ -43,18 +76,37 @@ export function normalizeErrorMessage(payload, fallback = 'Request failed') {
 }
 
 http.interceptors.request.use((config) => {
+  const requestId = config.headers?.['X-Request-ID'] || config.headers?.['x-request-id'] || createRequestId()
+  config.headers = config.headers || {}
+  config.headers['X-Request-ID'] = requestId
+  config.metadata = {
+    ...(config.metadata || {}),
+    request_id: requestId,
+    started_at: nowMs()
+  }
   const token = localStorage.getItem(TOKEN_STORAGE_KEY)
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  logger.debug('API request started', {
+    event: 'api.request.started',
+    request_id: requestId,
+    user_id: localStorage.getItem(USERNAME_STORAGE_KEY) || '',
+    method: String(config.method || 'GET').toUpperCase(),
+    url: config.url
+  })
   return config
 })
 
 http.interceptors.response.use(
-  (res) => res.data,
+  (res) => {
+    logApiCompleted(res.config, res.status)
+    return res.data
+  },
   (err) => {
     const { response, config = {} } = err
     const status = response?.status || 0
+    logApiCompleted(config, status, err)
     const isSilentRequest = !!config.skipErrorHandler
     const fallbackMessage = !response
       ? '网络请求失败，请检查后端服务是否已启动'

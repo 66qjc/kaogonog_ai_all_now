@@ -119,7 +119,20 @@ NON_SUBSTANTIVE_MARKERS = (
 
 
 async def transcribe(audio_bytes: bytes, filename: str = "answer.webm") -> dict:
+    logger.info(
+        "Scoring transcription started",
+        extra={"event": "scoring.transcribe.started", "file_name": filename, "bytes": len(audio_bytes or b"")},
+    )
     transcript = await transcribe_audio_file(audio_bytes, filename=filename)
+    logger.info(
+        "Scoring transcription completed",
+        extra={
+            "event": "scoring.transcribe.completed",
+            "filename": filename,
+            "transcript_length": len(transcript or ""),
+            "is_placeholder": _is_placeholder_transcript(transcript),
+        },
+    )
     return {"transcript": transcript, "duration": round(len(transcript) / 10, 1)}
 
 
@@ -785,6 +798,15 @@ def _apply_short_answer_cap(result: dict, transcript: str) -> dict:
 
 
 async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_id: Optional[str]) -> dict:
+    logger.info(
+        "Scoring evaluation started",
+        extra={
+            "event": "scoring.evaluate.started",
+            "exam_id": exam_id or "",
+            "question_id": question_id,
+            "transcript_length": len(transcript or ""),
+        },
+    )
     question = db.query(Question).filter(Question.id == question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -831,6 +853,17 @@ async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_i
                 visual_observation=visual_observation,
             ),
         )
+        logger.info(
+            "Scoring evaluation completed",
+            extra={
+                "event": "scoring.evaluate.completed",
+                "exam_id": exam_id or "",
+                "question_id": question_id,
+                "scoring_mode": result.get("scoringMode", "conservative"),
+                "total_score": result.get("totalScore"),
+                "grade": result.get("grade"),
+            },
+        )
         return _persist_result(db, exam_id, question_id, transcript, result)
 
     if _is_gibberish_answer(question, transcript):
@@ -845,6 +878,17 @@ async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_i
                 scoring_mode=result.get("scoringMode", "screened_zero"),
                 visual_observation=visual_observation,
             ),
+        )
+        logger.info(
+            "Scoring evaluation completed",
+            extra={
+                "event": "scoring.evaluate.completed",
+                "exam_id": exam_id or "",
+                "question_id": question_id,
+                "scoring_mode": result.get("scoringMode", "screened_zero"),
+                "total_score": result.get("totalScore"),
+                "grade": result.get("grade"),
+            },
         )
         return _persist_result(db, exam_id, question_id, transcript, result)
 
@@ -866,10 +910,24 @@ async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_i
                 visual_observation=visual_observation,
             ),
         )
+        logger.info(
+            "Scoring evaluation completed",
+            extra={
+                "event": "scoring.evaluate.completed",
+                "exam_id": exam_id or "",
+                "question_id": question_id,
+                "scoring_mode": result.get("scoringMode", "rule_based"),
+                "total_score": result.get("totalScore"),
+                "grade": result.get("grade"),
+            },
+        )
         return _persist_result(db, exam_id, question_id, transcript, result)
 
     # Stage 1: Evidence extraction
-    logger.info("Stage 1: Evidence extraction")
+    logger.info(
+        "Stage 1: Evidence extraction",
+        extra={"event": "scoring.stage.evidence_started", "exam_id": exam_id or "", "question_id": question_id},
+    )
     evidence_prompt = build_evidence_extraction_prompt(transcript, q_dict)
     evidence_raw = await call_llm_api_async(evidence_prompt)
     evidence = {"present": [], "absent": [], "penalty": [], "bonus": []}
@@ -878,7 +936,10 @@ async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_i
         evidence = validate_evidence(evidence, transcript)
 
     # Stage 2: Evidence-based scoring
-    logger.info("Stage 2: Evidence-based scoring")
+    logger.info(
+        "Stage 2: Evidence-based scoring",
+        extra={"event": "scoring.stage.scoring_started", "exam_id": exam_id or "", "question_id": question_id},
+    )
     scoring_prompt = build_evidence_based_scoring_prompt(evidence, q_dict)
     scoring_raw = await call_llm_api_async(scoring_prompt)
     dim_scores, rationale = {}, ""
@@ -894,7 +955,10 @@ async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_i
             logger.warning("Recoverable scoring validation errors: %s", "; ".join(errors))
 
     if not dim_scores:
-        logger.warning("Two-stage scoring failed, attempting direct llm scoring")
+        logger.warning(
+            "Two-stage scoring failed, attempting direct llm scoring",
+            extra={"event": "scoring.stage.two_stage_failed", "exam_id": exam_id or "", "question_id": question_id},
+        )
         direct_prompt = _build_direct_llm_scoring_prompt(transcript, q_dict)
         direct_raw = await call_llm_api_async(
             direct_prompt,
@@ -907,7 +971,10 @@ async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_i
             rationale = str(direct_raw.get("overall_rationale") or rationale or "").strip()
 
     if not dim_scores:
-        logger.warning("LLM scoring failed, using deterministic rule scorer")
+        logger.warning(
+            "LLM scoring failed, using deterministic rule scorer",
+            extra={"event": "scoring.stage.llm_failed", "exam_id": exam_id or "", "question_id": question_id},
+        )
         result = _build_rule_based_result(
             question,
             transcript,
@@ -930,6 +997,17 @@ async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_i
                 direct_raw=direct_raw,
                 visual_observation=visual_observation,
             ),
+        )
+        logger.info(
+            "Scoring evaluation completed",
+            extra={
+                "event": "scoring.evaluate.completed",
+                "exam_id": exam_id or "",
+                "question_id": question_id,
+                "scoring_mode": result.get("scoringMode", "rule_based"),
+                "total_score": result.get("totalScore"),
+                "grade": result.get("grade"),
+            },
         )
         return _persist_result(db, exam_id, question_id, transcript, result)
 
@@ -963,6 +1041,17 @@ async def evaluate_answer(db: Session, question_id: str, transcript: str, exam_i
             direct_raw=direct_raw,
             visual_observation=visual_observation,
         ),
+    )
+    logger.info(
+        "Scoring evaluation completed",
+        extra={
+            "event": "scoring.evaluate.completed",
+            "exam_id": exam_id or "",
+            "question_id": question_id,
+            "scoring_mode": result.get("scoringMode", "llm"),
+            "total_score": result.get("totalScore"),
+            "grade": result.get("grade"),
+        },
     )
     return _persist_result(db, exam_id, question_id, transcript, result)
 

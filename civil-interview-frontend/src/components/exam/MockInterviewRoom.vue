@@ -298,6 +298,7 @@ import AudioWaveform from '@/components/recording/AudioWaveform.vue'
 import VideoPreview from '@/components/recording/VideoPreview.vue'
 import QuestionMetaTags from '@/components/common/QuestionMetaTags.vue'
 import QuestionRichContent from '@/components/common/QuestionRichContent.vue'
+import { logger } from '@/utils/logger'
 import mockRoomBg from '@/assets/exam/mock-interview-ai-clean.jpg'
 import judgeRoomReference from '@/assets/exam/mock-interview-room-live-current.png'
 
@@ -731,7 +732,11 @@ async function finishExam() {
     await examStore.evaluatePendingAnswers()
     await completeExam(examId)
   } catch (error) {
-    console.error('保存面试记录失败:', error)
+    logger.error('Mock interview save failed', {
+      event: 'mock_interview.save_failed',
+      exam_id: examId,
+      error
+    })
   }
 
   recorder.destroyStream()
@@ -754,7 +759,11 @@ async function exitExam() {
       await completeExam(examStore.examId)
       message.success('已保存当前面试进度。')
     } catch (error) {
-      console.error('保存面试记录失败:', error)
+      logger.error('Mock interview progress save failed', {
+        event: 'mock_interview.progress.save_failed',
+        exam_id: examStore.examId,
+        error
+      })
     }
   }
 

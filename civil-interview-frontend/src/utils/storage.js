@@ -1,4 +1,6 @@
 // 安全的 localStorage 操作
+import { logger } from '@/utils/logger'
+
 const isStorageAvailable = () => {
   try {
     const test = '__test__'
@@ -17,7 +19,11 @@ export const storage = {
       const item = localStorage.getItem(key)
       return item ? JSON.parse(item) : defaultValue
     } catch (e) {
-      console.warn(`[Storage] 读取 ${key} 失败:`, e)
+      logger.warn('Storage read failed', {
+        event: 'storage.read.failed',
+        key,
+        error: e
+      })
       return defaultValue
     }
   },
@@ -28,7 +34,11 @@ export const storage = {
       localStorage.setItem(key, JSON.stringify(value))
       return true
     } catch (e) {
-      console.warn(`[Storage] 保存 ${key} 失败:`, e)
+      logger.warn('Storage write failed', {
+        event: 'storage.write.failed',
+        key,
+        error: e
+      })
       return false
     }
   },
@@ -39,7 +49,11 @@ export const storage = {
       localStorage.removeItem(key)
       return true
     } catch (e) {
-      console.warn(`[Storage] 删除 ${key} 失败:`, e)
+      logger.warn('Storage remove failed', {
+        event: 'storage.remove.failed',
+        key,
+        error: e
+      })
       return false
     }
   }

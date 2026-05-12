@@ -20,6 +20,29 @@ export function getRandomQuestions(params = {}) {
   })
 }
 
+export function createQuestion(data) {
+  return request({
+    url: '/questions',
+    method: 'POST',
+    data
+  })
+}
+
+export function updateQuestion(id, data) {
+  return request({
+    url: `/questions/${encodeURIComponent(id)}`,
+    method: 'PUT',
+    data
+  })
+}
+
+export function deleteQuestion(id) {
+  return request({
+    url: `/questions/${encodeURIComponent(id)}`,
+    method: 'DELETE'
+  })
+}
+
 export function importQuestions(filePath) {
   return uploadFile({
     url: '/questions/import',

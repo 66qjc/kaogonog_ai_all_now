@@ -108,12 +108,16 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { onHide, onLoad, onReady } from '@dcloudio/uni-app'
 import EmptyState from '../../components/EmptyState.vue'
+import { completeTrial } from '../../api/trial'
+import { reportUsage } from '../../api/usage'
 import { useExamStore } from '../../stores/exam'
+import { useSubscriptionStore } from '../../stores/subscription'
 import { useUserStore } from '../../stores/user'
 import { formatTime } from '../../utils/format'
 import { hideLoading, showLoading, toast } from '../../utils/navigation'
 
 const examStore = useExamStore()
+const subscriptionStore = useSubscriptionStore()
 const userStore = useUserStore()
 const phase = ref('preparing')
 const prepLeft = ref(userStore.preferences.defaultPrepTime)
@@ -128,6 +132,8 @@ const recordedVideoFile = ref('')
 const cameraContext = ref(null)
 const cameraError = ref('')
 const selectedMediaType = ref('')
+const questionStartedAt = ref(Date.now())
+const reportedQuestionKeys = new Set()
 let timer = null
 
 const question = computed(() => examStore.currentQuestion)
@@ -218,12 +224,43 @@ function resetQuestionState() {
   phase.value = 'preparing'
   prepLeft.value = Number(question.value?.prepTime || userStore.preferences.defaultPrepTime || 90)
   answerLeft.value = Number(question.value?.answerTime || userStore.preferences.defaultAnswerTime || 180)
+  questionStartedAt.value = Date.now()
   answerText.value = ''
   recording.value = false
   recordedFile.value = ''
   videoRecording.value = false
   recordedVideoFile.value = ''
   selectedMediaType.value = ''
+}
+
+function currentUsageSeconds() {
+  const elapsed = Math.ceil((Date.now() - questionStartedAt.value) / 1000)
+  const maxSeconds = Number(question.value?.prepTime || userStore.preferences.defaultPrepTime || 90)
+    + Number(question.value?.answerTime || userStore.preferences.defaultAnswerTime || 180)
+  return Math.max(1, Math.min(elapsed, maxSeconds || elapsed))
+}
+
+function usageType() {
+  if (examStore.source === 'trial') return 'trial'
+  if (examStore.source === 'mock') return 'mock'
+  return 'practice'
+}
+
+async function syncUsageAndTrial(answer) {
+  const key = `${answer.examId}:${answer.questionId}:${answer.questionIndex}`
+  if (!reportedQuestionKeys.has(key)) {
+    reportedQuestionKeys.add(key)
+    await reportUsage({
+      examId: answer.examId,
+      questionId: answer.questionId,
+      usageSeconds: currentUsageSeconds(),
+      usageType: usageType()
+    }).then(() => subscriptionStore.refresh({ skipErrorHandler: true })).catch(() => null)
+  }
+
+  if (examStore.source === 'trial' && examStore.isLastQuestion) {
+    await completeTrial().then(() => subscriptionStore.refresh({ skipErrorHandler: true })).catch(() => null)
+  }
 }
 
 function startRecord() {
@@ -345,6 +382,7 @@ async function submitAnswer() {
       filePath: media.filePath,
       mediaType: media.mediaType || 'audio'
     })
+    await syncUsageAndTrial(answer)
 
     if (examStore.isLastQuestion) {
       await examStore.finish()

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { logger } from '@/utils/logger'
 
 const STORAGE_KEY = 'civil_training_progress'
 
@@ -15,7 +16,10 @@ function saveProgress(progress) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress))
   } catch (e) {
-    console.warn('[Training] localStorage 存储失败:', e.message)
+    logger.warn('Training storage write failed', {
+      event: 'training.storage.write_failed',
+      error: e
+    })
   }
 }
 

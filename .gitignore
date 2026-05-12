@@ -7,6 +7,11 @@ __pycache__/
 # 2. 机密环境变量 (核心安全底线)
 .env
 *.secret
+apiclient_*.pem
+apiclient_*.p12
+wechatpay_platform*.pem
+wechatpay_public_key*.pem
+pub_key.pem
 
 # 3. 媒体缓存与临时文件 (多模态业务隔离)
 *.mp4

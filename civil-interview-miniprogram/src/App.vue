@@ -1,9 +1,13 @@
 <script>
 import { API_BASE } from './api/request'
+import { logger } from './utils/logger'
 
 export default {
   onLaunch() {
-    console.log(`[miniapp] API base: ${API_BASE}`)
+    logger.info('Mini program launched', {
+      event: 'miniapp.launch',
+      api_base: API_BASE
+    })
   }
 }
 </script>

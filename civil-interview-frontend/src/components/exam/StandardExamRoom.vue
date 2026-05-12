@@ -121,6 +121,7 @@ import ScoreRing from '@/components/common/ScoreRing.vue'
 import QuestionMetaTags from '@/components/common/QuestionMetaTags.vue'
 import QuestionRichContent from '@/components/common/QuestionRichContent.vue'
 import { message } from 'ant-design-vue'
+import { logger } from '@/utils/logger'
 
 const router = useRouter()
 const examStore = useExamStore()
@@ -220,7 +221,11 @@ async function onFinish() {
   try {
     await completeExam(examId)
   } catch (error) {
-    console.error('保存历史记录失败:', error)
+    logger.error('Exam history save failed', {
+      event: 'exam.history.save_failed',
+      exam_id: examId,
+      error
+    })
   }
   countdown.stop()
   recorder.destroyStream()
@@ -236,7 +241,11 @@ async function exitExam() {
       await completeExam(examId)
       message.success('练习记录已保存')
     } catch (error) {
-      console.error('保存记录失败:', error)
+      logger.error('Exam progress save failed', {
+        event: 'exam.progress.save_failed',
+        exam_id: examId,
+        error
+      })
     }
   }
   examStore.exitExam()

@@ -27,6 +27,8 @@ __pycache__/
 # 2. 重要环境变量 
 .env
 *.secret
+certs/*.pem
+certs/*.p12
 
 # 3. 媒体缓存与临时文件 
 *.mp4

@@ -1,11 +1,18 @@
-﻿""" 一键部署脚本 — 初始化/重置 MySQL 数据库、建表、写入种子数据 """
+""" 一键部署脚本 — 初始化/重置 MySQL 数据库、建表、写入种子数据 """
 import argparse
 import json
+import logging
 import os
 import sys
 from pathlib import Path
 import pymysql
 from dotenv import load_dotenv
+
+from app.core.config import settings
+from app.core.logging import configure_logging
+
+configure_logging(settings)
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 SEED_QUESTIONS_PATH = BASE_DIR / "seed_questions.json"
@@ -231,11 +238,11 @@ def check_connection(config: dict) -> bool:
         with conn.cursor() as cur:
             cur.execute("SELECT VERSION()")
             ver = cur.fetchone()
-            print(f" [OK] MySQL 版本: {ver['VERSION()']}")
+            logger.info("MySQL connection ok", extra={"event": "database.connection.ok", "mysql_version": ver["VERSION()"]})
         conn.close()
         return True
     except Exception as e:
-        print(f" [FAIL] 无法连接 MySQL: {e}")
+        logger.error("MySQL connection failed", extra={"event": "database.connection.failed", "error": str(e)})
         return False
 
 
@@ -246,7 +253,7 @@ def create_database(config: dict):
     try:
         with conn.cursor() as cur:
             cur.execute(f"CREATE DATABASE IF NOT EXISTS `{config['database']}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            print(f" [OK] 数据库`{config['database']}` 已就绪")
+            logger.info("Database ready", extra={"event": "database.ready", "database": config["database"]})
     finally:
         conn.close()
 
@@ -258,7 +265,7 @@ def drop_database(config: dict):
     try:
         with conn.cursor() as cur:
             cur.execute(f"DROP DATABASE IF EXISTS `{config['database']}`")
-            print(f" [WARN] 数据库`{config['database']}` 已删除")
+            logger.warning("Database dropped", extra={"event": "database.dropped", "database": config["database"]})
     finally:
         conn.close()
 
@@ -301,7 +308,7 @@ def create_tables(config: dict):
                 cur.execute(sql)
         ensure_schema_updates(conn, config["database"])
         conn.commit()
-        print(f" [OK] {len(TABLE_STATEMENTS)} 张表已创建/更新")
+        logger.info("Tables created or updated", extra={"event": "database.tables.ready", "table_count": len(TABLE_STATEMENTS)})
     except Exception:
         conn.rollback()
         raise
@@ -314,11 +321,11 @@ def check_tables(config: dict):
         with conn.cursor() as cur:
             cur.execute("SHOW TABLES")
             tables = [list(row.values())[0] for row in cur.fetchall()]
-            print(f" [INFO] 现有表 {', '.join(tables) if tables else '(空)'}")
+            logger.info("Tables checked", extra={"event": "database.tables.checked", "tables": tables})
             for table in tables:
                 cur.execute(f"SELECT COUNT(*) AS cnt FROM `{table}`")
                 count = cur.fetchone()["cnt"]
-                print(f" - {table}: {count} 条记录")
+                logger.info("Table row count", extra={"event": "database.table.count", "table": table, "count": count})
     finally:
         conn.close()
 
@@ -333,7 +340,7 @@ def seed_default_user(conn):
     """
     with conn.cursor() as cur:
         cur.execute(sql, ("admin", pwd_context.hash("admin123"), "管理员", "admin@example.com", "national"))
-        print(" [OK] 默认用户: admin / admin123")
+        logger.info("Default user seeded", extra={"event": "database.seed.user", "username": "admin"})
 
 
 def seed_subscription_packages(conn):
@@ -360,12 +367,15 @@ def seed_subscription_packages(conn):
     with conn.cursor() as cur:
         for package in packages:
             cur.execute(sql, package)
-        print(f" [OK] 套餐配置: {len(packages)} 个")
+        logger.info("Subscription packages seeded", extra={"event": "database.seed.packages", "count": len(packages)})
 
 
 def seed_questions(conn):
     if not SEED_QUESTIONS_PATH.exists():
-        print(f" [SKIP] 题目文件不存在 {SEED_QUESTIONS_PATH}")
+        logger.info(
+            "Seed questions skipped",
+            extra={"event": "database.seed.questions.skipped", "reason": "file_not_found", "path": str(SEED_QUESTIONS_PATH)},
+        )
         return 0
     with SEED_QUESTIONS_PATH.open("r", encoding="utf-8") as f:
         questions = json.load(f)
@@ -398,14 +408,14 @@ def seed_questions(conn):
                 json.dumps(q.get("keywords", {"scoring": [], "deducting": [], "bonus": []}), ensure_ascii=False)
             ))
             count += 1
-    print(f" [OK] 导入 {count} 道题目")
+    logger.info("Questions seeded", extra={"event": "database.seed.questions", "count": count})
     return count
 
 
 def seed_from_db_json(conn):
     if not DB_JSON_PATH.exists():
         return
-    print(" [INFO] 检测到 db.json，尝试迁移旧数据...")
+    logger.info("Legacy db.json migration started", extra={"event": "database.legacy_migration.started", "path": str(DB_JSON_PATH)})
     with DB_JSON_PATH.open("r", encoding="utf-8") as f:
         db_data = json.load(f)
     users = db_data.get("users", {})
@@ -424,7 +434,7 @@ def seed_from_db_json(conn):
                     user.get("email", ""),
                     user.get("province", "national")
                 ))
-        print(f" [OK] 迁移 {len(users)} 个用户")
+        logger.info("Legacy users migrated", extra={"event": "database.legacy_migration.users", "count": len(users)})
 
     exams = db_data.get("exams", {})
     if exams:
@@ -442,7 +452,7 @@ def seed_from_db_json(conn):
                     exam.get("startTime"),
                     exam.get("endTime")
                 ))
-        print(f" [OK] 迁移 {len(exams)} 条考试记录")
+        logger.info("Legacy exams migrated", extra={"event": "database.legacy_migration.exams", "count": len(exams)})
 
     history = db_data.get("history", [])
     if history:
@@ -462,7 +472,7 @@ def seed_from_db_json(conn):
                     item.get("province", "national"),
                     item.get("completedAt")
                 ))
-        print(f" [OK] 迁移 {len(history)} 条历史记录")
+        logger.info("Legacy history migrated", extra={"event": "database.legacy_migration.history", "count": len(history)})
 
 
 def run_seed(config: dict):
@@ -487,52 +497,56 @@ def main():
     parser.add_argument("--check", action="store_true", help="仅检查连接和表状态")
     args = parser.parse_args()
 
-    print("=" * 60)
-    print(" 公务员面试练习平台 - MySQL 一键部署脚本")
-    print("=" * 60)
+    logger.info("MySQL setup started", extra={"event": "database.setup.started"})
 
-    print("\n[1/5] 读取数据库配置...")
+    logger.info("Reading database config", extra={"event": "database.setup.step", "step": 1, "step_name": "read_config"})
     try:
         config = get_mysql_config()
-        print(f" [OK] {config['user']}@{config['host']}:{config['port']}/{config['database']}")
+        logger.info(
+            "Database config loaded",
+            extra={
+                "event": "database.config.loaded",
+                "user": config["user"],
+                "host": config["host"],
+                "port": config["port"],
+                "database": config["database"],
+            },
+        )
     except Exception as e:
-        print(f" [FAIL] {e}")
+        logger.error("Database config failed", extra={"event": "database.config.failed", "error": str(e)})
         sys.exit(1)
 
-    print("\n[2/5] 检查 MySQL 连接...")
+    logger.info("Checking MySQL connection", extra={"event": "database.setup.step", "step": 2, "step_name": "check_connection"})
     if not check_connection(config):
         sys.exit(1)
 
     if args.check:
-        print("\n[检查模式] 查看表状态...")
+        logger.info("Database check mode started", extra={"event": "database.check.started"})
         try:
             check_tables(config)
         except Exception as e:
-            print(f" [INFO] {e}")
-        print("\n检查完毕")
+            logger.info("Database check skipped", extra={"event": "database.check.skipped", "error": str(e)})
+        logger.info("Database check completed", extra={"event": "database.check.completed"})
         return
 
     if args.reset:
-        print("\n[3/5] 删除并重建数据库...")
+        logger.warning("Dropping and recreating database", extra={"event": "database.setup.step", "step": 3, "step_name": "reset_database"})
         drop_database(config)
     else:
-        print("\n[3/5] 创建数据库（如不存在）...")
+        logger.info("Creating database if missing", extra={"event": "database.setup.step", "step": 3, "step_name": "create_database"})
         create_database(config)
 
     if not args.seed_only:
-        print("\n[4/5] 创建表结构...")
+        logger.info("Creating tables", extra={"event": "database.setup.step", "step": 4, "step_name": "create_tables"})
         create_tables(config)
     else:
-        print("\n[4/5] 跳过建表（仅种子模式）")
+        logger.info("Skipping table creation", extra={"event": "database.setup.step", "step": 4, "step_name": "skip_tables"})
 
-    print("\n[5/5] 写入种子数据...")
+    logger.info("Seeding data", extra={"event": "database.setup.step", "step": 5, "step_name": "seed_data"})
     run_seed(config)
 
-    print("\n部署完成！")
+    logger.info("MySQL setup completed", extra={"event": "database.setup.completed"})
 
 
 if __name__ == "__main__":
     main()
-
-
-

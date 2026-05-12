@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from time import time
 
 from fastapi import HTTPException, status
@@ -63,11 +64,55 @@ def has_paid_access_from_billing(billing_state: dict | None, now_ms: int | None 
     return False
 
 
+def _parse_iso_ms(value: str | None) -> int:
+    if not value:
+        return 0
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return 0
+    return int(parsed.timestamp() * 1000)
+
+
+def _billing_state_from_subscription(subscription_state: dict | None) -> dict:
+    state = subscription_state if isinstance(subscription_state, dict) else {}
+    plan_type = str(state.get("planType") or BILLING_PLAN_TRIAL)
+    if plan_type not in VALID_BILLING_PLANS:
+        plan_type = BILLING_PLAN_TRIAL
+
+    remaining_minutes = max(0, int(float(state.get("remainingMinutes") or 0)))
+    monthly_expire_at = _parse_iso_ms(state.get("expiresAt")) if plan_type == BILLING_PLAN_MONTHLY else 0
+    return normalize_billing_state(
+        {
+            "planType": plan_type,
+            "remainingSeconds": remaining_minutes * 60 if plan_type == BILLING_PLAN_HOURLY else 0,
+            "monthlyExpireAt": monthly_expire_at,
+            "activatedAt": _parse_iso_ms(state.get("startAt") or state.get("createdAt")),
+        }
+    )
+
+
+def has_paid_access_from_subscription(subscription_state: dict | None) -> bool:
+    state = subscription_state if isinstance(subscription_state, dict) else {}
+    if bool(state.get("isTrialUser")):
+        return False
+    if str(state.get("status") or "").lower() != "active":
+        return False
+    plan_type = str(state.get("planType") or "")
+    if plan_type not in {BILLING_PLAN_HOURLY, BILLING_PLAN_MONTHLY}:
+        return False
+    return bool(state.get("canUse") or state.get("hasActivePlan") or int(float(state.get("remainingMinutes") or 0)) > 0)
+
+
 def build_access_context(user) -> dict:
     preferences = user.preferences if isinstance(getattr(user, "preferences", None), dict) else {}
     billing_state = normalize_billing_state(preferences.get("billing"))
+    subscription_state = preferences.get("subscription") if isinstance(preferences.get("subscription"), dict) else {}
+    subscription_billing_state = _billing_state_from_subscription(subscription_state)
     is_admin = is_admin_username(getattr(user, "username", ""))
-    is_paid = is_admin or has_paid_access_from_billing(billing_state)
+    is_paid = is_admin or has_paid_access_from_billing(billing_state) or has_paid_access_from_subscription(subscription_state)
+    if not has_paid_access_from_billing(billing_state) and has_paid_access_from_subscription(subscription_state):
+        billing_state = subscription_billing_state
 
     return {
         "role": "admin" if is_admin else "user",

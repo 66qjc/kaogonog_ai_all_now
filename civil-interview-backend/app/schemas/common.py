@@ -83,12 +83,18 @@ class PaymentOrderCreateRequest(BaseModel):
     packageCode: str = Field(validation_alias=AliasChoices("packageCode", "package_code"))
     payChannel: str = Field(default="wechat", validation_alias=AliasChoices("payChannel", "pay_channel"))
     openId: Optional[str] = Field(default=None, validation_alias=AliasChoices("openId", "open_id"))
+    code: Optional[str] = None
+    appId: Optional[str] = Field(default=None, validation_alias=AliasChoices("appId", "app_id", "appid"))
     clientIp: Optional[str] = Field(default=None, validation_alias=AliasChoices("clientIp", "client_ip"))
+    idempotencyKey: Optional[str] = Field(default=None, validation_alias=AliasChoices("idempotencyKey", "idempotency_key"))
     scene: str = Field(default="mini_program")
 
 
 class PaymentCallbackRequest(BaseModel):
     mode: str = "mock"
+    eventType: Optional[str] = Field(default=None, validation_alias=AliasChoices("eventType", "event_type"))
+    resource: Optional[Dict] = None
+    summary: Optional[str] = None
     orderNo: Optional[str] = Field(default=None, validation_alias=AliasChoices("orderNo", "order_no"))
     status: str = "paid"
     thirdPartyOrderNo: Optional[str] = Field(default=None, validation_alias=AliasChoices("thirdPartyOrderNo", "third_party_order_no"))
@@ -107,6 +113,7 @@ class PaymentRefundApplyRequest(BaseModel):
     orderNo: str = Field(validation_alias=AliasChoices("orderNo", "order_no"))
     refundedHours: Optional[int] = Field(default=None, ge=0, validation_alias=AliasChoices("refundedHours", "refunded_hours"))
     refundRemark: Optional[str] = Field(default=None, validation_alias=AliasChoices("refundRemark", "refund_remark"))
+    refundReason: Optional[str] = Field(default=None, validation_alias=AliasChoices("refundReason", "refund_reason"))
 
 
 # ===== Scoring =====

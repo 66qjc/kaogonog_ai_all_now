@@ -1,6 +1,10 @@
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 # ================== 配置题库基础信息（修正版）==================
 # 1. 题目基础信息配置
@@ -95,8 +99,14 @@ def create_question_bank_excel(save_path: str = "公考面试题库模板_最终
 
     # 5. 保存文件
     wb.save(save_path)
-    print(f"✅ 最终版题库模板已生成！保存路径：{save_path}")
-    print(f"✅ 修正点：1. 字段名拼写错误 2. 维度配置JSON完整 3. 列宽适配内容不截断")
+    logger.info(
+        "Question bank template generated",
+        extra={
+            "event": "question_template.generated",
+            "path": save_path,
+            "fixes": ["field_names", "dimension_config_json", "column_width"],
+        },
+    )
 
 # ================== 执行生成 ==================
 if __name__ == "__main__":

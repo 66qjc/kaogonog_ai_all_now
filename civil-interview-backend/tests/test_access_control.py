@@ -68,6 +68,27 @@ class AccessControlTestCase(unittest.TestCase):
         self.assertTrue(context["billing"]["isPaid"])
         self.assertTrue(context["permissions"]["canManageQuestionBank"])
 
+    def test_build_access_context_accepts_active_subscription_snapshot(self):
+        context = build_access_context(
+            DummyUser(
+                "paid_user",
+                {
+                    "subscription": {
+                        "isTrialUser": False,
+                        "planType": BILLING_PLAN_HOURLY,
+                        "status": "active",
+                        "remainingMinutes": 120,
+                        "canUse": True,
+                    }
+                },
+            )
+        )
+
+        self.assertTrue(context["billing"]["isPaid"])
+        self.assertEqual(context["billing"]["planType"], BILLING_PLAN_HOURLY)
+        self.assertEqual(context["billing"]["remainingSeconds"], 7200)
+        self.assertTrue(context["permissions"]["canAccessPremiumModules"])
+
     def test_trial_user_only_can_start_trial_question(self):
         trial_user = DummyAuthUser(is_admin=False, can_access_premium=False)
         ensure_exam_start_access(trial_user, [TRIAL_QUESTION_ID])

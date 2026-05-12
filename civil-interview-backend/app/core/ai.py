@@ -72,8 +72,11 @@ def call_llm_api(
         if content.endswith("```"):
             content = content[:-3]
         return json.loads(content.strip())
-    except Exception as e:
-        logger.error(f"LLM call failed: {e}")
+    except Exception:
+        logger.exception(
+            "LLM call failed",
+            extra={"event": "llm.call.failed", "provider": settings.llm_provider, "model": settings.llm_model},
+        )
         return None
 
 
@@ -262,15 +265,23 @@ async def transcribe_audio_file(audio_bytes: bytes, filename: str = "answer.webm
                     text = response.get("text")
             if isinstance(text, str) and text.strip():
                 return text.strip()
-        except Exception as exc:
-            logger.warning("ASR transcription failed, trying local Whisper fallback: %s", exc)
+        except Exception:
+            logger.warning(
+                "ASR transcription failed, trying local Whisper fallback",
+                extra={"event": "asr.remote.failed", "provider": settings.llm_provider, "model": asr_model},
+                exc_info=True,
+            )
 
     try:
         text = _transcribe_with_local_whisper(audio_bytes, filename)
         if text.strip():
             return text.strip()
-    except Exception as exc:
-        logger.warning("Local Whisper fallback failed, falling back to placeholder: %s", exc)
+    except Exception:
+        logger.warning(
+            "Local Whisper fallback failed, falling back to placeholder",
+            extra={"event": "asr.local.failed"},
+            exc_info=True,
+        )
 
     return ASR_UNAVAILABLE_PLACEHOLDER
 

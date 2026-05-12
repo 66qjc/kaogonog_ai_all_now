@@ -50,6 +50,13 @@ def _sync_user_preferences_subscription(user: User, subscription: UserSubscripti
             "expiresAt": "",
             "canUse": True,
         }
+        prefs["billing"] = {
+            "planType": "trial",
+            "remainingSeconds": 0,
+            "monthlyExpireAt": 0,
+            "activatedAt": 0,
+            "orderHistory": [],
+        }
         user.preferences = prefs
         return prefs["subscription"]
 
@@ -80,6 +87,13 @@ def _sync_user_preferences_subscription(user: User, subscription: UserSubscripti
         "packageCode": subscription.package_code,
     }
     prefs["subscription"] = snapshot
+    prefs["billing"] = {
+        "planType": subscription.plan_type if can_use and not subscription.is_trial else "trial",
+        "remainingSeconds": remaining_minutes * 60 if can_use and subscription.plan_type == "hourly" else 0,
+        "monthlyExpireAt": int(subscription.end_at.timestamp() * 1000) if can_use and subscription.plan_type == "monthly" and subscription.end_at else 0,
+        "activatedAt": int(subscription.start_at.timestamp() * 1000) if subscription.start_at else 0,
+        "orderHistory": [],
+    }
     user.preferences = prefs
     return snapshot
 

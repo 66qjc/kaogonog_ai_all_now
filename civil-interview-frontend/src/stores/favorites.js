@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { logger } from '@/utils/logger'
 
 const STORAGE_KEY = 'civil_favorites'
 
@@ -15,7 +16,10 @@ function saveToStorage(items) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
   } catch (e) {
-    console.warn('[Favorites] localStorage 存储失败:', e.message)
+    logger.warn('Favorites storage write failed', {
+      event: 'favorites.storage.write_failed',
+      error: e
+    })
   }
 }
 

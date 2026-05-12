@@ -74,15 +74,17 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useExamStore } from '../../stores/exam'
 import { useBillingStore } from '../../stores/billing'
 import { useQuestionBankStore } from '../../stores/questionBank'
+import { useSubscriptionStore } from '../../stores/subscription'
 import { useUserStore } from '../../stores/user'
 import { getQuestionById } from '../../api/questionBank'
-import { getTrialQuestion } from '../../api/trial'
+import { getTrialQuestion, getTrialStatus } from '../../api/trial'
 import { hideLoading, requireLogin, showLoading, toast } from '../../utils/navigation'
 import { QUESTION_CATEGORIES } from '../../utils/constants'
 
 const examStore = useExamStore()
 const billingStore = useBillingStore()
 const questionBankStore = useQuestionBankStore()
+const subscriptionStore = useSubscriptionStore()
 const userStore = useUserStore()
 const DEFAULT_EXAM_QUESTION_COUNT = 5
 const MAX_FREE_QUESTION_COUNT = 10
@@ -92,8 +94,10 @@ const selectedDimensions = ref(['random'])
 const loading = ref(false)
 const accessLoading = ref(false)
 const trial = ref(false)
+const trialStatus = ref(null)
 const hasFullAccess = computed(() => {
   return billingStore.isPaid
+    || subscriptionStore.status.hasActivePlan
     || userStore.isAdmin
     || userStore.userInfo?.billing?.isPaid === true
     || userStore.userInfo?.permissions?.canAccessPremiumModules === true
@@ -129,10 +133,16 @@ async function refreshAccessState() {
   if (!userStore.isAuthenticated) return false
   accessLoading.value = true
   try {
-    await userStore.loadUserInfo()
+    await Promise.allSettled([
+      userStore.loadUserInfo(),
+      subscriptionStore.refresh({ skipErrorHandler: true })
+    ])
     if (hasFullAccess.value && trial.value) {
       trial.value = false
       count.value = DEFAULT_EXAM_QUESTION_COUNT
+    }
+    if (trial.value) {
+      trialStatus.value = await getTrialStatus({ skipErrorHandler: true }).catch(() => null)
     }
     return hasFullAccess.value
   } finally {
@@ -174,6 +184,10 @@ async function startPractice() {
   if (!requireLogin()) return
   if (loading.value) return
   await refreshAccessState().catch(() => null)
+  if (trial.value && trialStatus.value?.trialCompleted) {
+    toast('试用已完成，请开通套餐后继续练习')
+    return
+  }
   if (readonlyMode.value) {
     toast('请先开通套餐后进入正式考场')
     return
@@ -196,6 +210,13 @@ async function startPractice() {
         questions = fallbackQuestion?.id ? [fallbackQuestion] : []
       }
     } else {
+      if (!userStore.isAdmin) {
+        const access = await subscriptionStore.check(mode.value === 'mock' ? 'mock' : 'practice', { skipErrorHandler: true }).catch(() => null)
+        if (access && access.allowed === false) {
+          toast(access.reason || '当前套餐额度不足')
+          return
+        }
+      }
       questions = await questionBankStore.fetchRandom({
         province: userStore.selectedProvince,
         count: mode.value === 'mock' ? DEFAULT_EXAM_QUESTION_COUNT : count.value,
@@ -208,7 +229,7 @@ async function startPractice() {
       return
     }
     const targetCount = trial.value ? 1 : mode.value === 'mock' ? DEFAULT_EXAM_QUESTION_COUNT : count.value
-    await examStore.startFromQuestions(questions.slice(0, targetCount), mode.value)
+    await examStore.startFromQuestions(questions.slice(0, targetCount), trial.value ? 'trial' : mode.value)
     uni.navigateTo({ url: '/pages/exam/room' })
   } catch (error) {
     toast(error?.message || '进入考场失败')

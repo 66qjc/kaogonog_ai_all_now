@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
@@ -42,5 +44,11 @@ def payment_apply_refund(data: PaymentRefundApplyRequest, current_user: AuthUser
 
 
 @router.post("/callback/wechat")
-def payment_wechat_callback(data: PaymentCallbackRequest, db: Session = Depends(get_db)):
-    return handle_payment_callback(db, data)
+async def payment_wechat_callback(request: Request, db: Session = Depends(get_db)):
+    raw_body = await request.body()
+    try:
+        payload = json.loads(raw_body.decode("utf-8") or "{}")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="微信支付回调请求体不是合法 JSON") from exc
+    data = PaymentCallbackRequest.model_validate(payload)
+    return handle_payment_callback(db, data, dict(request.headers), raw_body)

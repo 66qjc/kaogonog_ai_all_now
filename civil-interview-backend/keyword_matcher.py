@@ -1,4 +1,8 @@
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 
 def keyword_match(text, keywords):
@@ -40,4 +44,4 @@ if __name__ == '__main__':
         "coreKeywords": ["因地制宜", "实事求是"]
     }
     matches = match_all_categories(sample_text, mock_q)
-    print(matches)
+    logger.info("Keyword match sample completed", extra={"event": "keyword_matcher.sample", "matches": matches})

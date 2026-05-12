@@ -1,4 +1,7 @@
 from keyword_matcher import match_all_categories
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def post_process(llm_result, answer, question_data):
@@ -42,7 +45,14 @@ def post_process(llm_result, answer, question_data):
 
     # 如果差异过大，以维度累加为准（或者记录警告）
     if abs(calculated_total - reported_total) > 1:
-        print(f"[WARN] LLM total ({reported_total}) != dimension sum ({calculated_total}), corrected.")
+        logger.warning(
+            "LLM total score corrected",
+            extra={
+                "event": "legacy_scoring.total_corrected",
+                "reported_total": reported_total,
+                "calculated_total": calculated_total,
+            },
+        )
         llm_result['total_score'] = calculated_total
 
     # 限制总分不超过满分

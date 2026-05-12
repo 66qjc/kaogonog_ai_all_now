@@ -1,6 +1,10 @@
 import json
 import pandas as pd
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 
 def load_question_json(filepath):
@@ -61,7 +65,7 @@ def load_question_excel(filepath, question_id=None):
             # 简单映射评分标准，实际项目中可细化
             question["scoringCriteria"].append(f"考察{dim_name}维度的表现")
     except json.JSONDecodeError:
-        print("警告：维度配置 JSON 解析失败")
+        logger.warning("Dimension config JSON parse failed", extra={"event": "data_loader.dimension_config_invalid"})
 
     # 解析关键词规则
     for _, rule_row in df_rules.iterrows():
@@ -101,6 +105,6 @@ if __name__ == '__main__':
     # 测试加载
     try:
         q = load_question('question.json')
-        print(f"加载成功：{q.get('question', '')[:50]}...")
+        logger.info("Question loaded", extra={"event": "data_loader.question_loaded", "preview": q.get('question', '')[:50]})
     except Exception as e:
-        print(f"加载失败：{e}")
+        logger.exception("Question load failed", extra={"event": "data_loader.question_load_failed", "error": str(e)})

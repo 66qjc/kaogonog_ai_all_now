@@ -40,6 +40,22 @@
         <text>套餐中心</text>
         <text class="menu-item__arrow">›</text>
       </view>
+      <view class="menu-item card" @tap="goSubscription">
+        <text>订阅权益</text>
+        <text class="menu-item__arrow">›</text>
+      </view>
+      <view class="menu-item card" @tap="goOrders">
+        <text>订单记录</text>
+        <text class="menu-item__arrow">›</text>
+      </view>
+      <view class="menu-item card" @tap="goSecurity">
+        <text>账号安全</text>
+        <text class="menu-item__arrow">›</text>
+      </view>
+      <view v-if="userStore.isAdmin" class="menu-item card" @tap="goAdmin">
+        <text>管理员中心</text>
+        <text class="menu-item__arrow">›</text>
+      </view>
     </view>
 
     <view class="card">
@@ -117,6 +133,22 @@ function goHistory() {
 
 function goPricing() {
   uni.navigateTo({ url: '/pages/pricing/index' })
+}
+
+function goSubscription() {
+  uni.navigateTo({ url: '/pages/subscription/index' })
+}
+
+function goOrders() {
+  uni.navigateTo({ url: '/pages/billing/orders' })
+}
+
+function goSecurity() {
+  uni.navigateTo({ url: '/pages/account/security' })
+}
+
+function goAdmin() {
+  uni.navigateTo({ url: '/pages/admin/index' })
 }
 
 function logout() {

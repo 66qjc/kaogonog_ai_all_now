@@ -247,7 +247,6 @@ async function activatePlan(plan) {
         }
       })
       await userStore.loadUserInfo().catch(() => null)
-      billingStore.activatePlan(plan.key)
       message.success(`已开通：${order.packageName || plan.title}`)
     } else {
       message.success('订单已创建，请在微信支付完成后等待回调同步')

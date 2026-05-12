@@ -1,24 +1,17 @@
 import { TOKEN_STORAGE_KEY, USERNAME_STORAGE_KEY } from '../utils/constants'
+import { createRequestId, logger } from '../utils/logger'
 import { toast } from '../utils/navigation'
 
 const RUNTIME_API_BASE_KEY = 'civil_runtime_api_base'
-const STALE_API_BASE_PATTERNS = [
-  /xzqianmianyuzhoukeji\.cn/i
-]
 
 function normalizeBase(base) {
   return String(base || '').trim().replace(/\/$/, '')
 }
 
-function isStaleApiBase(base) {
-  return STALE_API_BASE_PATTERNS.some((pattern) => pattern.test(String(base || '')))
-}
-
 function resolveApiBase() {
   const runtimeBase = normalizeBase(uni.getStorageSync(RUNTIME_API_BASE_KEY))
   if (runtimeBase) {
-    if (!isStaleApiBase(runtimeBase)) return runtimeBase
-    uni.removeStorageSync(RUNTIME_API_BASE_KEY)
+    return runtimeBase
   }
 
   const h5Base = normalizeBase(import.meta.env.VITE_API_BASE_H5)
@@ -35,6 +28,10 @@ function resolveApiBase() {
 }
 
 export const API_BASE = resolveApiBase()
+
+function nowMs() {
+  return Date.now()
+}
 
 function joinUrl(path = '') {
   const value = String(path || '')
@@ -81,6 +78,46 @@ function normalizeNetworkError(err) {
   return rawMessage || '网络请求失败，请检查后端服务'
 }
 
+function getCurrentUserId() {
+  return uni.getStorageSync(USERNAME_STORAGE_KEY) || ''
+}
+
+function logRequestStarted({ requestId, method, url, upload = false }) {
+  logger.debug(upload ? 'API upload started' : 'API request started', {
+    event: upload ? 'api.upload.started' : 'api.request.started',
+    request_id: requestId,
+    user_id: getCurrentUserId(),
+    method,
+    url
+  })
+}
+
+function logRequestCompleted({ requestId, method, url, statusCode, durationMs, upload = false }) {
+  logger.debug(upload ? 'API upload completed' : 'API request completed', {
+    event: upload ? 'api.upload.completed' : 'api.request.completed',
+    request_id: requestId,
+    user_id: getCurrentUserId(),
+    method,
+    url,
+    status_code: statusCode,
+    duration_ms: durationMs
+  })
+}
+
+function logRequestFailed({ requestId, method, url, statusCode = 0, durationMs, error, upload = false }) {
+  const write = statusCode >= 500 || statusCode === 0 ? logger.error : logger.warn
+  write(upload ? 'API upload failed' : 'API request failed', {
+    event: upload ? 'api.upload.failed' : 'api.request.failed',
+    request_id: requestId,
+    user_id: getCurrentUserId(),
+    method,
+    url,
+    status_code: statusCode,
+    duration_ms: durationMs,
+    error
+  })
+}
+
 export function request(options = {}) {
   const {
     url,
@@ -90,20 +127,34 @@ export function request(options = {}) {
     timeout = 30000,
     skipErrorHandler = false
   } = options
+  const requestId = header['X-Request-ID'] || header['x-request-id'] || createRequestId()
+  const requestUrl = joinUrl(url)
+  const requestMethod = String(method || 'GET').toUpperCase()
+  const startedAt = nowMs()
+  logRequestStarted({ requestId, method: requestMethod, url: requestUrl })
 
   return new Promise((resolve, reject) => {
     uni.request({
-      url: joinUrl(url),
+      url: requestUrl,
       method,
       data,
       timeout,
       header: {
         ...getAuthHeader(),
+        'X-Request-ID': requestId,
         ...header
       },
       success(res) {
         const status = Number(res.statusCode || 0)
+        const durationMs = nowMs() - startedAt
         if (status >= 200 && status < 300) {
+          logRequestCompleted({
+            requestId,
+            method: requestMethod,
+            url: requestUrl,
+            statusCode: status,
+            durationMs
+          })
           resolve(res.data)
           return
         }
@@ -112,6 +163,14 @@ export function request(options = {}) {
         const error = new Error(message)
         error.statusCode = status
         error.data = res.data
+        logRequestFailed({
+          requestId,
+          method: requestMethod,
+          url: requestUrl,
+          statusCode: status,
+          durationMs,
+          error
+        })
 
         if (status === 401) {
           handleUnauthorized()
@@ -122,6 +181,13 @@ export function request(options = {}) {
       },
       fail(err) {
         const error = new Error(normalizeNetworkError(err))
+        logRequestFailed({
+          requestId,
+          method: requestMethod,
+          url: requestUrl,
+          durationMs: nowMs() - startedAt,
+          error
+        })
         if (!skipErrorHandler) toast(error.message)
         reject(error)
       }
@@ -139,20 +205,26 @@ export function uploadFile(options = {}) {
     timeout = 60000,
     skipErrorHandler = false
   } = options
+  const requestId = header['X-Request-ID'] || header['x-request-id'] || createRequestId()
+  const requestUrl = joinUrl(url)
+  const startedAt = nowMs()
+  logRequestStarted({ requestId, method: 'POST', url: requestUrl, upload: true })
 
   return new Promise((resolve, reject) => {
     uni.uploadFile({
-      url: joinUrl(url),
+      url: requestUrl,
       filePath,
       name,
       formData,
       timeout,
       header: {
         ...getAuthHeader(),
+        'X-Request-ID': requestId,
         ...header
       },
       success(res) {
         const status = Number(res.statusCode || 0)
+        const durationMs = nowMs() - startedAt
         let payload = res.data
         try {
           payload = typeof res.data === 'string' ? JSON.parse(res.data) : res.data
@@ -161,6 +233,14 @@ export function uploadFile(options = {}) {
         }
 
         if (status >= 200 && status < 300) {
+          logRequestCompleted({
+            requestId,
+            method: 'POST',
+            url: requestUrl,
+            statusCode: status,
+            durationMs,
+            upload: true
+          })
           resolve(payload)
           return
         }
@@ -169,6 +249,15 @@ export function uploadFile(options = {}) {
         const error = new Error(message)
         error.statusCode = status
         error.data = payload
+        logRequestFailed({
+          requestId,
+          method: 'POST',
+          url: requestUrl,
+          statusCode: status,
+          durationMs,
+          error,
+          upload: true
+        })
         if (status === 401) {
           handleUnauthorized()
         } else if (!skipErrorHandler) {
@@ -178,6 +267,14 @@ export function uploadFile(options = {}) {
       },
       fail(err) {
         const error = new Error(normalizeNetworkError(err))
+        logRequestFailed({
+          requestId,
+          method: 'POST',
+          url: requestUrl,
+          durationMs: nowMs() - startedAt,
+          error,
+          upload: true
+        })
         if (!skipErrorHandler) toast(error.message)
         reject(error)
       }

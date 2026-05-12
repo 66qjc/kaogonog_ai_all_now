@@ -12,6 +12,7 @@
 
 <script setup>
 import { ref, onErrorCaptured } from 'vue'
+import { logger } from '@/utils/logger'
 
 const hasError = ref(false)
 const errorMessage = ref('')
@@ -19,7 +20,10 @@ const errorMessage = ref('')
 onErrorCaptured((err) => {
   hasError.value = true
   errorMessage.value = err?.message || '未知错误'
-  console.error('[ErrorBoundary]', err)
+  logger.error('Component error captured', {
+    event: 'component.error_captured',
+    error: err
+  })
   return false // 阻止错误继续传播
 })
 

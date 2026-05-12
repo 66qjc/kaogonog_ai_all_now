@@ -28,3 +28,36 @@ export function updateUserProfile(data) {
     data
   })
 }
+
+export function updatePassword(data) {
+  return request({
+    url: '/user/password',
+    method: 'PUT',
+    data
+  })
+}
+
+export function getTermsStatus(config = {}) {
+  return request({
+    url: '/user/terms-status',
+    ...config
+  })
+}
+
+export function agreeTerms(version) {
+  return request({
+    url: '/user/agree-terms',
+    method: 'POST',
+    data: { version }
+  })
+}
+
+export function getDeviceRisk(deviceId, config = {}) {
+  return request({
+    url: '/user/device-risk',
+    header: {
+      'X-Device-ID': deviceId || ''
+    },
+    ...config
+  })
+}

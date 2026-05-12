@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.access import build_access_context
+from app.core.logging import set_log_context
 from app.db.session import get_db
 from app.models.entities import User
 from app.schemas.common import AuthUser, TokenData
@@ -65,6 +66,7 @@ async def get_current_user(
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise exc
+    set_log_context(user_id=user.username)
     access_context = build_access_context(user)
     return AuthUser(
         username=user.username,

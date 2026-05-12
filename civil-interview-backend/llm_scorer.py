@@ -1,7 +1,11 @@
 import openai
 import json
+import logging
 import time
 from prompt_builder import build_prompt
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 # 设置API密钥（建议从环境变量读取）
 openai.api_key = "你的API密钥"
@@ -26,10 +30,16 @@ def call_llm(prompt, max_retries=3):
             result = json.loads(content)
             return result
         except json.JSONDecodeError:
-            print(f"Attempt {attempt+1}: 返回的不是有效JSON，重试...")
+            logger.warning(
+                "LLM scorer returned invalid JSON",
+                extra={"event": "legacy_llm.invalid_json", "attempt": attempt + 1},
+            )
             time.sleep(1)
-        except Exception as e:
-            print(f"Attempt {attempt+1}: 调用出错: {e}")
+        except Exception:
+            logger.exception(
+                "LLM scorer call failed",
+                extra={"event": "legacy_llm.call_failed", "attempt": attempt + 1},
+            )
             time.sleep(2)
     return None
 

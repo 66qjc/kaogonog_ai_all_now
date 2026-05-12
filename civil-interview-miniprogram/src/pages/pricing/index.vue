@@ -1,7 +1,7 @@
 <template>
   <view class="page">
     <text class="page-title">套餐中心</text>
-    <text class="page-desc">当前小程序端提供与网页端一致的本地演示开通能力，后续可接入真实支付。</text>
+    <text class="page-desc">开通结果以后端订单和微信支付通知为准，支付完成后会自动同步权益。</text>
 
     <view class="pricing-status card">
       <text class="pricing-status__label">当前套餐</text>
@@ -21,32 +21,123 @@
     <view class="plan-card card">
       <view>
         <text class="plan-card__title">按时套餐</text>
-        <text class="plan-card__price">¥19.9</text>
+        <text class="plan-card__price">¥99</text>
         <text class="plan-card__desc">适合短期冲刺，解锁完整模考、定向备面、专项训练。</text>
       </view>
-      <button class="primary-button" @tap="activate('hourly')">立即开通</button>
+      <button class="primary-button" :loading="loadingPlan === 'hourly'" :disabled="!!loadingPlan" @tap="activate('hourly')">立即开通</button>
     </view>
 
     <view class="plan-card card">
       <view>
         <text class="plan-card__title">包月套餐</text>
-        <text class="plan-card__price">¥59.9</text>
+        <text class="plan-card__price">¥299</text>
         <text class="plan-card__desc">适合系统备考，当前周期内不限次数练习。</text>
       </view>
-      <button class="primary-button" @tap="activate('monthly')">立即开通</button>
+      <button class="primary-button" :loading="loadingPlan === 'monthly'" :disabled="!!loadingPlan" @tap="activate('monthly')">立即开通</button>
     </view>
   </view>
 </template>
 
 <script setup>
+import { ref } from 'vue'
+import { createPaymentOrder, getPaymentOrder, mockWechatPaymentCallback } from '../../api/payment'
 import { useBillingStore } from '../../stores/billing'
+import { useUserStore } from '../../stores/user'
 import { toast } from '../../utils/navigation'
 
 const billingStore = useBillingStore()
+const userStore = useUserStore()
+const loadingPlan = ref('')
+const WECHAT_APPID = import.meta.env.VITE_WECHAT_APPID || 'wxa31c6e32dfa4b178'
 
-function activate(plan) {
-  billingStore.activate(plan)
-  toast('开通成功', 'success')
+const PACKAGE_BY_PLAN = {
+  hourly: 'trial_3h',
+  monthly: 'monthly_1h_day'
+}
+
+function createIdempotencyKey(plan) {
+  return `mini_${plan}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function loginForPayCode() {
+  return new Promise((resolve, reject) => {
+    uni.login({
+      provider: 'weixin',
+      success(res) {
+        if (res.code) resolve(res.code)
+        else reject(new Error('微信登录未返回 code'))
+      },
+      fail(err) {
+        reject(new Error(err?.errMsg || '微信登录失败'))
+      }
+    })
+  })
+}
+
+function requestWechatPayment(payParams = {}) {
+  return new Promise((resolve, reject) => {
+    uni.requestPayment({
+      provider: 'wxpay',
+      timeStamp: String(payParams.timeStamp || ''),
+      nonceStr: payParams.nonceStr || '',
+      package: payParams.package || '',
+      signType: payParams.signType || 'RSA',
+      paySign: payParams.paySign || '',
+      success: resolve,
+      fail(err) {
+        reject(new Error(err?.errMsg || '微信支付未完成'))
+      }
+    })
+  })
+}
+
+async function waitOrderPaid(orderNo) {
+  for (let index = 0; index < 5; index += 1) {
+    const order = await getPaymentOrder(orderNo)
+    if (order?.status === 'paid') return order
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+  }
+  return null
+}
+
+async function activate(plan) {
+  if (!PACKAGE_BY_PLAN[plan] || loadingPlan.value) return
+  loadingPlan.value = plan
+  try {
+    const code = await loginForPayCode()
+    const order = await createPaymentOrder({
+      packageCode: PACKAGE_BY_PLAN[plan],
+      payChannel: 'wechat',
+      scene: 'mini_program',
+      appId: WECHAT_APPID,
+      code,
+      idempotencyKey: createIdempotencyKey(plan)
+    })
+
+    if (order.payParams?.mode === 'mock') {
+      await mockWechatPaymentCallback({
+        orderNo: order.orderNo,
+        status: 'paid',
+        amountTotal: Math.round(Number(order.amount || 0) * 100),
+        callbackPayload: {
+          source: 'mini_program_pricing_page',
+          packageCode: order.packageCode
+        }
+      })
+      await userStore.loadUserInfo()
+      toast('开通成功', 'success')
+      return
+    }
+
+    await requestWechatPayment(order.payParams?.miniProgramPay || {})
+    const paidOrder = await waitOrderPaid(order.orderNo)
+    await userStore.loadUserInfo()
+    toast(paidOrder ? '支付成功，权益已同步' : '支付已提交，权益同步中', 'success')
+  } catch (error) {
+    toast(error?.message || '支付未完成，请稍后重试')
+  } finally {
+    loadingPlan.value = ''
+  }
 }
 
 function startTrial() {

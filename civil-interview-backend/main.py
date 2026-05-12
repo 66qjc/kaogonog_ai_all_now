@@ -1,8 +1,4 @@
-"""Civil Interview Backend — refactored entry point
-Layered architecture: routes → services → models (SQLite + SQLAlchemy)
-"""
 import logging
-import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -10,14 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.db.session import engine, Base
 from app.api.v1 import api_router
 
 # ── logging ──────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+configure_logging(settings)
 logger = logging.getLogger(__name__)
 UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -38,13 +32,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLoggingMiddleware, access_log_enabled=settings.log_access_enabled)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 # ── init DB + seed on first run ───────────────────────────────────────────────
 @app.on_event("startup")
 async def startup():
     Base.metadata.create_all(bind=engine)
-    logger.info(f"Database tables ready ({settings.database_url.split(':')[0]})")
+    logger.info(
+        "Database tables ready",
+        extra={
+            "event": "app.startup.database_ready",
+            "database_driver": settings.database_url.split(":")[0],
+            "app_env": settings.app_env,
+        },
+    )
     # Auto-seed if DB is empty
     try:
         from seed import seed
@@ -54,7 +56,7 @@ async def startup():
         db = SessionLocal()
         count = db.query(Question).count()
         if count == 0:
-            logger.info("Empty database, running seed...")
+            logger.info("Empty database, running seed", extra={"event": "app.startup.seed_start"})
             seed()
             count = db.query(Question).count()
         sync_result = sync_curated_question_assets(db)
@@ -63,10 +65,15 @@ async def startup():
                 "Curated question assets synced: +%s new, %s updated",
                 sync_result.get("synced", 0),
                 sync_result.get("updated", 0),
+                extra={
+                    "event": "question.assets.synced",
+                    "synced": sync_result.get("synced", 0),
+                    "updated": sync_result.get("updated", 0),
+                },
             )
         db.close()
     except Exception as e:
-        logger.warning(f"Seed skipped: {e}")
+        logger.warning("Seed skipped", extra={"event": "app.startup.seed_skipped", "error": str(e)}, exc_info=True)
 
 
 # ── routers ───────────────────────────────────────────────────────────────────

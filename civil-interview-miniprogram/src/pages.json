@@ -61,6 +61,48 @@
       }
     },
     {
+      "path": "pages/billing/orders",
+      "style": {
+        "navigationBarTitleText": "订单记录"
+      }
+    },
+    {
+      "path": "pages/subscription/index",
+      "style": {
+        "navigationBarTitleText": "订阅权益"
+      }
+    },
+    {
+      "path": "pages/account/security",
+      "style": {
+        "navigationBarTitleText": "账号安全"
+      }
+    },
+    {
+      "path": "pages/admin/index",
+      "style": {
+        "navigationBarTitleText": "管理员中心"
+      }
+    },
+    {
+      "path": "pages/admin/refunds",
+      "style": {
+        "navigationBarTitleText": "退款管理"
+      }
+    },
+    {
+      "path": "pages/admin/questions",
+      "style": {
+        "navigationBarTitleText": "题库管理"
+      }
+    },
+    {
+      "path": "pages/admin/question-edit",
+      "style": {
+        "navigationBarTitleText": "题目编辑"
+      }
+    },
+    {
       "path": "pages/targeted/index",
       "style": {
         "navigationBarTitleText": "定向备面"

@@ -230,9 +230,82 @@ sudo systemctl status civil-backend.service --no-pager -l
 
 ### 8.3 日志追踪
 
+后端默认输出结构化 JSON 日志到 stdout/stderr，由 `systemd journal` 收集。  
+生产推荐在 `/home/ubuntu/civil/latest/backend/.env` 中保留：
+
+```dotenv
+APP_ENV=production
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+LOG_FILE=
+LOG_MAX_BYTES=10485760
+LOG_BACKUP_COUNT=10
+LOG_RETENTION_DAYS=30
+LOG_ACCESS_ENABLED=true
+```
+
+字段说明：
+- `LOG_LEVEL`: `DEBUG/INFO/WARNING/ERROR`，生产通常用 `INFO`。
+- `LOG_FORMAT`: `json` 便于检索和后续接入日志平台；临时人工排查可设为 `text`。
+- `LOG_FILE`: 留空时只走 journal；填写 `logs/backend.jsonl` 时，应用会启用 `RotatingFileHandler`。
+- `LOG_MAX_BYTES` 与 `LOG_BACKUP_COUNT`: 应用内日志文件大小轮转策略。
+- `LOG_RETENTION_DAYS`: 保留天数约定，用于运维策略说明；journal 的真实保留还要看 journald 配置。
+- `LOG_ACCESS_ENABLED`: 是否记录每个 HTTP 请求的完成日志。
+
+实时查看：
+
 ```bash
 sudo journalctl -u civil-backend.service -f
 ```
+
+查看最近 200 条并保持 JSON 原文：
+
+```bash
+sudo journalctl -u civil-backend.service -n 200 --no-pager -o cat
+```
+
+按请求 ID 串联一次请求：
+
+```bash
+sudo journalctl -u civil-backend.service --no-pager -o cat | grep '<x-request-id>'
+```
+
+生产日志统一字段：
+- 基础字段：`timestamp`、`level`、`logger`、`message`、`event`、`module`、`function`、`line`。
+- 请求字段：`request_id`、`user_id`、`method`、`path`、`status_code`、`duration_ms`、`client_ip`。
+- 登录字段：`event=auth.login.succeeded/auth.login.failed`、`username`、`reason`。
+- 支付字段：`event=payment.* / wechat_pay.*`、`order_no`、`package_code`、`amount`、`pay_channel`、`status`、`transaction_id`。
+- 评分字段：`event=scoring.* / llm.* / asr.*`、`exam_id`、`question_id`、`scoring_mode`、`total_score`、`grade`。
+- 异常字段：`exception.type`、`exception.message`、`exception.stack`。
+
+脱敏规则：
+- 不得记录明文密码、token、Authorization、API Key、私钥、微信 `openid/session_key`、支付签名、密文回调体等。
+- 后端日志过滤器会把敏感键值替换为 `***`，前端与小程序 logger 也会做同类脱敏。
+- 排查问题时优先使用 `request_id/order_no/exam_id` 定位，避免把 `.env`、完整 token 或证书内容贴入日志。
+
+如果需要限制 journal 保留量，可编辑：
+
+```bash
+sudo nano /etc/systemd/journald.conf
+```
+
+建议项：
+
+```ini
+SystemMaxUse=1G
+MaxRetentionSec=30day
+```
+
+生效：
+
+```bash
+sudo systemctl restart systemd-journald
+```
+
+原理说明：
+- 应用日志输出到 stdout/stderr 后由 systemd 接管，服务崩溃前后的日志仍可通过 journal 统一查看。
+- `x-request-id` 会从前端/小程序传入，缺失时后端生成，并随响应头返回，用于把前端报错、Nginx 访问、后端业务日志串成一条链路。
+- 应用内文件轮转适合临时落盘；长期生产建议让 journal 或专业日志平台负责保留、压缩、检索和告警。
 
 ---
 
@@ -283,6 +356,22 @@ sudo systemctl status nginx --no-pager -l
 ---
 
 ## 10. 上线后验收清单（必须逐条验证）
+
+前端与小程序构建时也有日志开关：
+
+```dotenv
+# PC 前端：civil-interview-frontend/.env.production
+VITE_LOG_LEVEL=error
+
+# 小程序：civil-interview-miniprogram/.env.production
+VITE_LOG_LEVEL=error
+```
+
+说明：
+- 可选值为 `debug/info/warn/error/silent`。
+- 生产建议 `error`，联调可临时改为 `debug`。
+- PC 前端和小程序请求都会生成 `X-Request-ID`，后端会记录同一个 `request_id`。
+- 客户端日志统一走 `src/utils/logger.js`，业务代码不要直接写 `console.log/warn/error`。
 
 ```bash
 # 1) 后端健康
@@ -394,4 +483,3 @@ sudo systemctl status civil-backend --no-pager -l
 2. 服务器部署目录中的 SQLite 文件已清除。  
 3. `civil-backend.service` 保持 `enabled + active`。  
 4. `health` 与 `token(admin/123456789)` 已验证通过。  
-

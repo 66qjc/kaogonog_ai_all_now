@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { message } from 'ant-design-vue'
+import { logger } from '@/utils/logger'
 
 export function usePdfExport() {
   const exporting = ref(false)
@@ -69,7 +70,11 @@ export function usePdfExport() {
       canvas.height = 0
       message.success('PDF导出成功')
     } catch (e) {
-      console.error('PDF export failed:', e)
+      logger.error('PDF export failed', {
+        event: 'pdf.export.failed',
+        file_name: fileName,
+        error: e
+      })
       message.error('PDF导出失败，请重试')
     } finally {
       exporting.value = false
